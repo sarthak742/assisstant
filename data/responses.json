@@ -1,0 +1,27 @@
+{
+  "greeting": [
+    "Hello! How can I help you today?",
+    "Hi there! What can I do for you?",
+    "Greetings! How may I assist you?"
+  ],
+  "farewell": [
+    "Goodbye! Have a great day!",
+    "See you later!",
+    "Until next time!"
+  ],
+  "thanks": [
+    "You're welcome!",
+    "Happy to help!",
+    "My pleasure!"
+  ],
+  "unknown": [
+    "I'm not sure I understand. Could you rephrase that?",
+    "I don't have an answer for that yet.",
+    "I'm still learning about that."
+  ],
+  "fallback": [
+    "I'm sorry, I couldn't process that request.",
+    "I encountered an issue with that request.",
+    "I'm having trouble with that right now."
+  ]
+}

@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Jarvis UI Preview</title>
+  <link href="./preview.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="title">
+        <div class="brand">JARVIS</div>
+        <div class="muted">AI Assistant</div>
+      </div>
+      <div class="version">
+        <span class="muted">Version:</span> <span>1.0.0</span>
+      </div>
+      <div class="status">
+        <div class="dot connecting"></div>
+        <span class="muted">connecting</span>
+        <div class="theme">
+          <div class="swatch blue" title="Blue"></div>
+          <div class="swatch teal" title="Teal"></div>
+          <div class="swatch violet" title="Violet"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <aside class="sidebar">
+        <div class="logo">
+          <div style="font-weight:800">JARVIS</div>
+          <div class="muted" style="font-size:12px">AI Assistant</div>
+        </div>
+        <nav>
+          <div class="item active">💬 <span style="margin-left:10px">Chat</span></div>
+          <div class="item">🧠 <span style="margin-left:10px">Memory</span></div>
+          <div class="item">🔄 <span style="margin-left:10px">Context</span></div>
+          <div class="item">⬆️ <span style="margin-left:10px">Updates</span></div>
+          <div class="item">🔒 <span style="margin-left:10px">Security</span></div>
+          <div class="item">📋 <span style="margin-left:10px">Logs</span></div>
+          <div class="item">⚙️ <span style="margin-left:10px">Settings</span></div>
+        </nav>
+        <div class="quick">
+          <button class="button" style="width:100%; margin-bottom:8px">🎤 Voice Mode</button>
+          <button class="button secondary" style="width:100%">🔄 Restart Jarvis</button>
+        </div>
+      </aside>
+
+      <main class="chat">
+        <div id="messages" class="messages">
+          <div class="msg jarvis">
+            <div class="bubble">
+              Loaded recent memory: 3 interactions
+              <div class="muted" style="font-size:12px; margin-top:6px">now</div>
+            </div>
+          </div>
+          <div class="msg user">
+            <div class="bubble">
+              Reminder: Submit weekly report.
+              <div class="muted" style="font-size:12px; margin-top:6px; text-align:right">Yesterday</div>
+            </div>
+          </div>
+          <div class="msg jarvis">
+            <div class="bubble">
+              Note saved: Project Alpha kickoff materials.
+              <div class="muted" style="font-size:12px; margin-top:6px">Yesterday</div>
+            </div>
+          </div>
+          <div class="msg jarvis">
+            <div class="bubble">
+              Hello! I’m Jarvis. How can I help you today?
+              <div class="muted" style="font-size:12px; margin-top:6px">10:00 AM</div>
+            </div>
+          </div>
+          <div class="msg user">
+            <div class="bubble">
+              Show my upcoming meetings.
+              <div class="muted" style="font-size:12px; margin-top:6px; text-align:right">10:01 AM</div>
+            </div>
+          </div>
+          <div class="msg jarvis">
+            <div class="bubble">
+              You have a team sync at 11:00 AM and a client call at 2:30 PM.
+              <div class="muted" style="font-size:12px; margin-top:6px">10:01 AM</div>
+            </div>
+          </div>
+        </div>
+        <div class="input">
+          <button class="button" style="border-radius:50%; width:40px; height:40px">🎤</button>
+          <input id="chat-input" class="text" placeholder="Type your message..." />
+          <button id="send-btn" class="button">Send</button>
+        </div>
+      </main>
+
+      <aside class="panel">
+        <h3>Active Context</h3>
+        <div class="card muted">No active context data</div>
+
+        <h3>Recent Memory</h3>
+        <div class="card">
+          <div class="log">user: Reminder — submit weekly report</div>
+          <div class="log">jarvis: Note saved — Project Alpha kickoff</div>
+          <div class="log">jarvis: Loaded 3 interactions from memory</div>
+        </div>
+        <div style="display:flex; gap:8px; margin-bottom:12px">
+          <button id="refresh-memory-btn" class="button">Refresh</button>
+          <button id="clear-memory-btn" class="button secondary">Clear Memory</button>
+        </div>
+
+        <h3>System Updates</h3>
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px">
+            <div class="muted">Current Version</div>
+            <div>1.0.0</div>
+          </div>
+          <div style="display:flex; justify-content:space-between">
+            <div class="muted">Latest Version</div>
+            <div>1.0.0</div>
+          </div>
+        </div>
+        <div class="card muted" style="text-align:center">System is up to date</div>
+
+        <h3>Settings</h3>
+        <div class="card">
+          <div class="muted" style="margin-bottom:6px">Theme</div>
+          <div style="display:flex; gap:8px; align-items:center">
+            <div class="swatch blue" title="Blue"></div>
+            <div class="swatch teal" title="Teal"></div>
+            <div class="swatch violet" title="Violet"></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:8px">
+          <div class="muted" style="margin-bottom:6px">Privacy</div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px">
+            <div>Data Retention (days)</div>
+            <input type="number" value="30" style="width:80px" />
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px">
+            <div>Voice Data Storage</div>
+            <button class="button" style="width:100px">Enabled</button>
+          </div>
+          <div style="display:flex; justify-content:space-between">
+            <div>Location Tracking</div>
+            <button class="button secondary" style="width:100px">Disabled</button>
+          </div>
+        </div>
+
+        <h3>System Logs</h3>
+        <div class="log">Connected to backend</div>
+        <div class="log error">Failed to fetch weather API</div>
+        <div class="log">Security scan completed</div>
+      </aside>
+    </div>
+  </div>
+  <script>
+    (function(){
+      const messagesEl = document.getElementById('messages');
+      const inputEl = document.getElementById('chat-input');
+      const sendBtn = document.getElementById('send-btn');
+      const refreshBtn = document.getElementById('refresh-memory-btn');
+      const clearBtn = document.getElementById('clear-memory-btn');
+
+      function addMessage(speaker, text) {
+        const msg = document.createElement('div');
+        msg.className = 'msg ' + (speaker === 'user' ? 'user' : 'jarvis');
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = text;
+        msg.appendChild(bubble);
+        messagesEl.appendChild(msg);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+
+      async function sendMessage() {
+        const text = (inputEl && inputEl.value || '').trim();
+        if (!text) return;
+        addMessage('user', text);
+        if (inputEl) inputEl.value = '';
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.send_message) {
+          try {
+            const resp = await window.pywebview.api.send_message(text);
+            addMessage('jarvis', (resp && resp.response) ? resp.response : String(resp));
+          } catch (e) {
+            addMessage('jarvis', 'Error: ' + (e && e.message ? e.message : 'Unknown'));
+          }
+        } else {
+          addMessage('jarvis', 'Stub response: backend not connected.');
+        }
+      }
+
+      async function refreshMemory() {
+        try {
+          if (window.pywebview && window.pywebview.api && window.pywebview.api.get_recent_interactions) {
+            const items = await window.pywebview.api.get_recent_interactions(10);
+            if (Array.isArray(items)) {
+              addMessage('jarvis', `Loaded recent memory: ${items.length} interactions`);
+            } else {
+              addMessage('jarvis', 'Loaded recent memory');
+            }
+          } else {
+            addMessage('jarvis', 'Loaded recent memory (stub)');
+          }
+        } catch (e) {
+          addMessage('jarvis', 'Failed to load memory');
+        }
+      }
+
+      async function clearMemory() {
+        try {
+          if (window.pywebview && window.pywebview.api && window.pywebview.api.clear_memory) {
+            await window.pywebview.api.clear_memory();
+          }
+          addMessage('jarvis', 'Memory cleared.');
+        } catch (e) {
+          addMessage('jarvis', 'Failed to clear memory');
+        }
+      }
+
+      sendBtn && sendBtn.addEventListener('click', sendMessage);
+      refreshBtn && refreshBtn.addEventListener('click', refreshMemory);
+      clearBtn && clearBtn.addEventListener('click', clearMemory);
+
+      // Auto-refresh memory on load
+      document.addEventListener('DOMContentLoaded', refreshMemory);
+    })();
+  </script>
+</body>
+</html>

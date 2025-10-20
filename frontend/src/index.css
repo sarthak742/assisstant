@@ -1,0 +1,209 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #0ea5e9;
+  --secondary: #10b981;
+  --accent: #8b5cf6;
+  --background: #1a1a2e;
+  --surface: #262640;
+  --text: #e2e8f0;
+  --error: #ef4444;
+  --success: #22c55e;
+  --warning: #f59e0b;
+}
+
+body {
+  margin: 0;
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--background);
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 5px var(--primary);
+  }
+  50% {
+    box-shadow: 0 0 20px var(--primary);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+/* Theme transitions */
+.theme-transition {
+  transition: background-color 0.5s ease, color 0.5s ease, border-color 0.5s ease, 
+              box-shadow 0.5s ease, filter 0.5s ease, transform 0.3s ease;
+}
+
+/* Enhanced glow effects */
+.glow-effect {
+  position: relative;
+}
+
+.glow-effect::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 15px var(--primary), 0 0 30px var(--primary);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.glow-effect:hover::after {
+  opacity: 0.5;
+}
+
+/* Light diffusion */
+.light-source {
+  position: relative;
+}
+
+.light-source::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle,
+    var(--primary) 0%,
+    rgba(255, 255, 255, 0) 70%
+  );
+  opacity: 0.1;
+  filter: blur(20px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Improved animations */
+@keyframes float-enhanced {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+    filter: brightness(1);
+  }
+  25% {
+    transform: translateY(-5px) rotate(1deg);
+    filter: brightness(1.1);
+  }
+  50% {
+    transform: translateY(-10px) rotate(0deg);
+    filter: brightness(1.2);
+  }
+  75% {
+    transform: translateY(-5px) rotate(-1deg);
+    filter: brightness(1.1);
+  }
+}
+
+.float-enhanced {
+  animation: float-enhanced 8s ease-in-out infinite;
+}
+
+/* Custom classes */
+.jarvis-panel {
+  @apply bg-opacity-80 backdrop-blur-md rounded-lg shadow-lg p-4;
+  background-color: var(--surface);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.jarvis-button {
+  @apply px-4 py-2 rounded-md transition-all duration-300 focus:outline-none;
+  background-color: var(--primary);
+  color: white;
+}
+
+.jarvis-button:hover {
+  filter: brightness(1.2);
+  transform: translateY(-1px);
+}
+
+.jarvis-input {
+  @apply px-4 py-2 rounded-md bg-opacity-20 border border-opacity-30 focus:outline-none focus:ring-2;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.jarvis-input:focus {
+  border-color: var(--accent);
+}
+
+/* Theme classes */
+.theme-blue {
+  --primary: #0ea5e9;
+  --accent: #3b82f6;
+}
+
+.theme-teal {
+  --primary: #14b8a6;
+  --accent: #0d9488;
+}
+
+.theme-violet {
+  --primary: #8b5cf6;
+  --accent: #7c3aed;
+}
