@@ -18,13 +18,13 @@ const SidebarContainer = styled(motion.div)`
   left: 0;
   top: 0;
   height: 100vh;
-  width: ${props => props.isExpanded ? '220px' : '80px'};
+  width: ${props => props.$isExpanded ? '220px' : '80px'};
   background: ${props => props.theme.glass};
   backdrop-filter: blur(20px);
   border-right: 1px solid ${props => props.theme.border};
   display: flex;
   flex-direction: column;
-  align-items: ${props => props.isExpanded ? 'flex-start' : 'center'};
+  align-items: ${props => props.$isExpanded ? 'flex-start' : 'center'};
   padding: 20px 0;
   z-index: 100;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -84,7 +84,7 @@ const NavItem = styled(motion.div)`
   position: relative;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   
-  ${props => props.isActive && `
+  ${props => props.$isActive && `
     background: ${props.theme.glass};
     border: 1px solid ${props.theme.primary};
     box-shadow: 0 0 20px ${props.theme.glow};
@@ -94,20 +94,20 @@ const NavItem = styled(motion.div)`
     background: ${props => props.theme.glassHover};
     border: 1px solid ${props => props.theme.border};
     
-    ${props => !props.isActive && `
+    ${props => !props.$isActive && `
       box-shadow: 0 0 15px ${props.theme.glow};
     `}
   }
 
   svg {
-    color: ${props => props.isActive ? props.theme.primary : props.theme.textSecondary};
+    color: ${props => props.$isActive ? props.theme.primary : props.theme.textSecondary};
     transition: color 0.3s ease;
     min-width: 20px;
   }
 `;
 
 const NavLabel = styled(motion.span)`
-  color: ${props => props.isActive ? props.theme.text : props.theme.textSecondary};
+  color: ${props => props.$isActive ? props.theme.text : props.theme.textSecondary};
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
@@ -155,7 +155,7 @@ const ExpandButton = styled(motion.div)`
   svg {
     color: ${props => props.theme.textSecondary};
     transition: transform 0.3s ease;
-    transform: ${props => props.isExpanded ? 'rotate(180deg)' : 'rotate(0deg)'};
+    transform: ${props => props.$isExpanded ? 'rotate(180deg)' : 'rotate(0deg)'};
   }
 `;
 
@@ -195,7 +195,7 @@ const Sidebar = ({ activePanel, onPanelChange }) => {
   return (
     <SidebarContainer
       theme={theme}
-      isExpanded={showLabels}
+      $isExpanded={showLabels}
       variants={sidebarVariants}
       animate={showLabels ? "expanded" : "collapsed"}
       onHoverStart={() => setIsHovered(true)}
@@ -230,7 +230,7 @@ const Sidebar = ({ activePanel, onPanelChange }) => {
             <NavItem
               key={item.id}
               theme={theme}
-              isActive={isActive}
+              $isActive={isActive}
               onClick={() => handleItemClick(item.id)}
               whileHover={{ x: 2 }}
               whileTap={{ scale: 0.98 }}
@@ -241,7 +241,7 @@ const Sidebar = ({ activePanel, onPanelChange }) => {
                 {showLabels && (
                   <NavLabel
                     theme={theme}
-                    isActive={isActive}
+                    $isActive={isActive}
                     variants={labelVariants}
                     initial="hidden"
                     animate="visible"
@@ -253,29 +253,17 @@ const Sidebar = ({ activePanel, onPanelChange }) => {
                 )}
               </AnimatePresence>
 
-              {/* Notification badge */}
               {item.hasNotification && (
-                <NotificationBadge
-                  theme={theme}
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                />
+                <NotificationBadge theme={theme} />
               )}
             </NavItem>
           );
         })}
       </NavList>
 
-      {/* Expand/Collapse Button */}
-      <ExpandButton
-        theme={theme}
-        isExpanded={isExpanded}
-        onClick={() => setIsExpanded(!isExpanded)}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-      >
-        <ChevronRight size={14} />
+      {/* Expand toggle */}
+      <ExpandButton theme={theme} $isExpanded={showLabels} onClick={() => setIsExpanded(!isExpanded)}>
+        <ChevronRight size={16} />
       </ExpandButton>
     </SidebarContainer>
   );

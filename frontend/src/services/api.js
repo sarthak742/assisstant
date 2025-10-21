@@ -3,7 +3,21 @@ import axios from 'axios';
 
 // Configuration
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
-const WS_URL = process.env.REACT_APP_WS_URL || 'ws://localhost:8765';
+const WS_URL = process.env.REACT_APP_WS_URL || 'http://localhost:8765';
+
+// Runtime-resolved URL helpers for auto-detecting backend port
+const resolveWsUrl = () => {
+  if (process.env.REACT_APP_WS_URL) return process.env.REACT_APP_WS_URL;
+  if (typeof window !== 'undefined') {
+    const injected = window.__JARVIS_WS_URL || (window.__JARVIS_CONFIG && window.__JARVIS_CONFIG.WS_URL);
+    if (injected) return injected;
+    try {
+      const stored = localStorage.getItem('JARVIS_WS_URL');
+      if (stored) return stored;
+    } catch {}
+  }
+  return WS_URL;
+};
 
 // Socket.io connection
 let socket = null;
@@ -17,64 +31,95 @@ export const ApiService = {
    * Initialize WebSocket connection to backend
    */
   initializeSocket: () => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       try {
-        socket = io(WS_URL, {
-          reconnectionAttempts: 5,
+        const targetWsUrl = resolveWsUrl();
+        socket = io(targetWsUrl, {
+          reconnection: true,
+          reconnectionAttempts: Infinity,
           reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
+          timeout: 20000,
+          transports: ['websocket'],
+          autoConnect: true,
         });
 
         socket.on('connect', () => {
-          console.log('WebSocket connected');
+          eventListeners.get('connect')?.forEach(cb => {
+            try { cb({ connected: true, socketId: socket.id }); } catch (e) {}
+          });
           resolve({ success: true, socketId: socket.id });
         });
 
         socket.on('connect_error', (error) => {
-          console.error('WebSocket connection error:', error);
-          reject({ success: false, error });
+          eventListeners.get('connect_error')?.forEach(cb => {
+            try { cb(error); } catch (e) {}
+          });
+          resolve({ success: false, error });
+        });
+
+        socket.on('disconnect', (reason) => {
+          eventListeners.get('disconnect')?.forEach(cb => {
+            try { cb({ connected: false, reason }); } catch (e) {}
+          });
+        });
+
+        socket.on('reconnect_attempt', (attemptNumber) => {
+          eventListeners.get('reconnect_attempt')?.forEach(cb => {
+            try { cb({ attempt: attemptNumber }); } catch (e) {}
+          });
+        });
+
+        socket.on('reconnect', (attemptNumber) => {
+          eventListeners.get('reconnect')?.forEach(cb => {
+            try { cb({ connected: true, attempt: attemptNumber, socketId: socket.id }); } catch (e) {}
+          });
+        });
+
+        socket.on('reconnect_error', (error) => {
+          eventListeners.get('reconnect_error')?.forEach(cb => {
+            try { cb(error); } catch (e) {}
+          });
         });
 
         // Set up event listeners for various backend events
         socket.on('message', (data) => {
-          console.log('Received message:', data);
           eventListeners.get('message')?.forEach(callback => callback(data));
         });
 
         socket.on('chat_response', (data) => {
-          console.log('Chat response:', data);
           eventListeners.get('chat_response')?.forEach(callback => callback(data));
         });
 
         socket.on('memory_update', (data) => {
-          console.log('Memory update:', data);
           eventListeners.get('memory_update')?.forEach(callback => callback(data));
         });
 
         socket.on('system_update', (data) => {
-          console.log('System update:', data);
           eventListeners.get('system_update')?.forEach(callback => callback(data));
         });
 
         socket.on('security_event', (data) => {
-          console.log('Security event:', data);
           eventListeners.get('security_event')?.forEach(callback => callback(data));
         });
 
         socket.on('status_update', (data) => {
-          console.log('Status update:', data);
           eventListeners.get('status_update')?.forEach(callback => callback(data));
         });
 
         socket.on('error', (error) => {
-          console.error('Backend error:', error);
           eventListeners.get('error')?.forEach(callback => callback(error));
         });
       } catch (error) {
-        console.error('Failed to initialize socket:', error);
-        reject({ success: false, error });
+        resolve({ success: false, error });
       }
     });
   },
+
+  /**
+   * Check if we're in mock mode (always false; mock disabled)
+   */
+  isMockMode: () => false,
 
   /**
    * Disconnect WebSocket
@@ -110,12 +155,11 @@ export const ApiService = {
    * Send message via WebSocket
    */
   sendSocketMessage: (event, data) => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       if (!socket || !socket.connected) {
-        reject(new Error('Socket not connected'));
+        resolve({ success: false, error: 'Socket not connected' });
         return;
       }
-
       socket.emit(event, data, (response) => {
         resolve(response);
       });
@@ -303,6 +347,25 @@ export const ApiService = {
     } catch (error) {
       console.error('Failed to execute command:', error);
       throw error;
+    }
+  },
+
+  // Interaction logging API
+  logInteraction: async (payload) => {
+    try {
+      // Try primary endpoint
+      const response = await axios.post(`${API_BASE_URL}/memory/log`, payload);
+      return response.data;
+    } catch (error) {
+      // Fallback endpoint pattern
+      try {
+        const response = await axios.post(`${API_BASE_URL}/api/memory/log`, payload);
+        return response.data;
+      } catch (err) {
+        console.error('Failed to log interaction:', err);
+        // Do not throw to avoid UX interruption; return failure structure
+        return { success: false, error: err?.message || String(err) };
+      }
     }
   }
 };

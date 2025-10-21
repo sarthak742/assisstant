@@ -83,15 +83,33 @@ export const ThemeProvider = ({ children }) => {
 
   const theme = themes[currentTheme];
 
-  // Apply CSS custom properties for smooth transitions
+  // Apply theme changes with smooth transitions
   useEffect(() => {
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    
+    // Add transition class before changing theme
+    document.body.classList.add('theme-transition');
+    
+    // Update CSS variables
     const root = document.documentElement;
     Object.entries(theme).forEach(([key, value]) => {
       if (typeof value === 'string') {
         root.style.setProperty(`--theme-${key}`, value);
       }
     });
-  }, [theme]);
+    
+    // Apply color-transition class to key elements
+    document.querySelectorAll('.jarvis-panel, .glass-container, button, input').forEach(el => {
+      el.classList.add('color-transition');
+    });
+    
+    // Remove transition class after changes are complete
+    const transitionTimeout = setTimeout(() => {
+      document.body.classList.remove('theme-transition');
+    }, 500);
+    
+    return () => clearTimeout(transitionTimeout);
+  }, [theme, currentTheme]);
 
   const value = {
     theme,

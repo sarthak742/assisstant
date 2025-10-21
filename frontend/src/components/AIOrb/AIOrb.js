@@ -79,22 +79,22 @@ const MainOrb = styled(motion.div)`
   backdrop-filter: blur(5px);
   transform-style: preserve-3d;
   
-  ${props => props.state === 'idle' && css`
+  ${props => props.$state === 'idle' && css`
     animation: ${breathe} 4s ease-in-out infinite;
     box-shadow: 0 0 40px ${props.theme.glow}, inset 0 0 20px rgba(255, 255, 255, 0.2);
   `}
   
-  ${props => props.state === 'listening' && css`
+  ${props => props.$state === 'listening' && css`
     animation: ${pulse} 1.5s ease-in-out infinite;
     box-shadow: 0 0 60px ${props.theme.glow}, 0 0 100px ${props.theme.glow}, inset 0 0 30px rgba(255, 255, 255, 0.3);
   `}
   
-  ${props => props.state === 'speaking' && css`
+  ${props => props.$state === 'speaking' && css`
     animation: ${pulse} 1s ease-in-out infinite;
     box-shadow: 0 0 80px ${props.theme.secondary}, 0 0 120px ${props.theme.secondary}, inset 0 0 40px rgba(255, 255, 255, 0.4);
   `}
   
-  ${props => props.state === 'thinking' && css`
+  ${props => props.$state === 'thinking' && css`
     animation: ${rotate} 3s linear infinite, ${pulse} 2s ease-in-out infinite;
     box-shadow: 0 0 60px ${props.theme.accent}, 0 0 100px ${props.theme.accent}, inset 0 0 35px rgba(255, 255, 255, 0.3);
   `}
@@ -322,7 +322,7 @@ const AIOrb = ({
       {/* Main orb */}
       <MainOrb
         theme={theme}
-        state={state}
+        $state={state}
         variants={orbVariants}
         initial="idle"
         whileHover="hover"

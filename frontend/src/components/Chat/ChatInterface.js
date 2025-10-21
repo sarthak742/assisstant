@@ -15,7 +15,7 @@ const MessageBubble = styled(motion.div)`
   border: 1px solid ${props => props.theme.border};
   border-radius: 20px;
   max-width: 80%;
-  align-self: ${props => props.isUser ? 'flex-end' : 'flex-start'};
+  align-self: ${props => props.$isUser ? 'flex-end' : 'flex-start'};
   position: relative;
   transform-style: preserve-3d;
   transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
@@ -48,7 +48,7 @@ const MessageBubble = styled(motion.div)`
     opacity: 0.8;
   }
   
-  ${props => props.isUser ? `
+  ${props => props.$isUser ? `
     border-bottom-right-radius: 4px;
     border-color: ${props.theme.primary};
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1), 0 0 0 1px ${props.theme.primary}40;
@@ -144,8 +144,8 @@ const VoiceIndicator = styled(motion.div)`
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: ${props => props.isActive ? props.theme.primary : 'transparent'};
-  box-shadow: ${props => props.isActive ? `0 0 10px ${props.theme.glow}, 0 0 20px ${props.theme.primary}40` : 'none'};
+  background: ${props => props.$isActive ? props.theme.primary : 'transparent'};
+  box-shadow: ${props => props.$isActive ? `0 0 10px ${props.theme.glow}, 0 0 20px ${props.theme.primary}40` : 'none'};
   transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
   
   &::before {
@@ -161,7 +161,7 @@ const VoiceIndicator = styled(motion.div)`
       ${props => props.theme.primary}40 0%,
       transparent 70%
     );
-    opacity: ${props => props.isActive ? 0.8 : 0};
+    opacity: ${props => props.$isActive ? 0.8 : 0};
     transition: opacity 0.3s ease;
     filter: blur(2px);
   }
@@ -307,7 +307,8 @@ const ChatInterface = ({ onSendMessage, messages = [], isTyping = false }) => {
     speak,
     stopSpeaking,
     toggleVoiceMode,
-    clearTranscript
+    clearTranscript,
+    setWakeWordHandler
   } = useVoiceInteraction();
 
   // Auto-scroll to bottom when new messages arrive
@@ -318,10 +319,34 @@ const ChatInterface = ({ onSendMessage, messages = [], isTyping = false }) => {
   // Handle voice transcript
   useEffect(() => {
     if (transcript && !isListening) {
-      setInputValue(transcript);
+      const text = (transcript || '').trim();
+      setInputValue(text);
+      if (text && onSendMessage) {
+        onSendMessage(text);
+      }
       clearTranscript();
     }
-  }, [transcript, isListening, clearTranscript]);
+  }, [transcript, isListening, clearTranscript, onSendMessage]);
+
+  // Wire wake word command handler to send message automatically
+  useEffect(() => {
+    setWakeWordHandler((command) => {
+      const text = (command || '').trim();
+      if (text && onSendMessage) {
+        onSendMessage(text);
+      }
+    });
+    return () => setWakeWordHandler(null);
+  }, [setWakeWordHandler, onSendMessage]);
+
+  // Auto speak latest assistant message (if voice mode is not text)
+  useEffect(() => {
+    if (!isSupported || voiceMode === 'text') return;
+    const lastAI = messages.filter(m => !m.isUser).pop();
+    if (lastAI && lastAI.text) {
+      try { speak(lastAI.text); } catch (e) { /* noop */ }
+    }
+  }, [messages, isSupported, voiceMode, speak]);
 
   const handleSendMessage = () => {
     if (inputValue.trim() && onSendMessage) {
@@ -408,7 +433,7 @@ const ChatInterface = ({ onSendMessage, messages = [], isTyping = false }) => {
             <MessageBubble
               key={message.id || index}
               theme={theme}
-              isUser={message.isUser}
+              $isUser={message.isUser}
               variants={messageVariants}
               initial="hidden"
               animate="visible"
@@ -493,7 +518,7 @@ const ChatInterface = ({ onSendMessage, messages = [], isTyping = false }) => {
 
           <VoiceIndicator
             theme={theme}
-            isActive={isListening}
+            $isActive={isListening}
             animate={{ scale: isListening ? [1, 1.2, 1] : 1 }}
             transition={{ duration: 1, repeat: isListening ? Infinity : 0 }}
           />
@@ -504,7 +529,6 @@ const ChatInterface = ({ onSendMessage, messages = [], isTyping = false }) => {
           <ControlButton
             theme={theme}
             onClick={handleVoiceToggle}
-            isActive={isListening}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -517,7 +541,6 @@ const ChatInterface = ({ onSendMessage, messages = [], isTyping = false }) => {
           <ControlButton
             theme={theme}
             onClick={handleSpeakToggle}
-            isActive={isSpeaking}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >

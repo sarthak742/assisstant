@@ -1,142 +1,83 @@
-import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
+import React, { useEffect, useState } from 'react';
+import StatusBar from './components/StatusBar/StatusBar';
+import ApiService from './services/api';
+import Sidebar from './components/Navigation/Sidebar';
+import AIOrb from './components/AIOrb/AIOrb';
 import { ThemeProvider } from './contexts/ThemeContext';
 
-// Import new futuristic components
-import ParticleSystem from './components/ParticleSystem/ParticleSystem';
-import AIOrb from './components/AIOrb/AIOrb';
-import ChatInterface from './components/Chat/ChatInterface';
-import Sidebar from './components/Navigation/Sidebar';
-import StatusBar from './components/StatusBar/StatusBar';
-import { MainContainer } from './components/Glass/GlassComponents';
-
-// Import floating panels
-import MemoryPanel from './components/Panels/MemoryPanel';
-import UpdatePanel from './components/Panels/UpdatePanel';
-import SecurityPanel from './components/Panels/SecurityPanel';
-import ApiService from './services/api';
-
-// Global styles
-const GlobalContainer = styled.div`
-  width: 100vw;
-  height: 100vh;
-  background: #0A0F1C;
-  overflow: hidden;
-  position: relative;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-`;
-
-const AppLayout = styled.div`
-  display: flex;
-  width: 100%;
-  height: 100%;
-  position: relative;
-  z-index: 10;
-`;
-
-const MainContent = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  position: relative;
-`;
-
-const OrbContainer = styled.div`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 5;
-`;
-
-const ChatContainer = styled.div`
-  width: 100%;
-  max-width: 800px;
-  height: 60vh;
-  position: relative;
-  z-index: 15;
-  margin-top: 120px; /* Space for the orb */
-`;
-
 function App() {
-  const [activePanel, setActivePanel] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
 
-  // Initialize backend connection
   useEffect(() => {
-    const initializeBackend = async () => {
-      try {
-        setConnectionStatus('connecting');
-        // Initialize WebSocket connection to backend
-        await ApiService.initializeSocket().catch(() => {});
+    let isMounted = true;
+
+    const init = async () => {
+      const result = await ApiService.initializeSocket();
+      if (!isMounted) return;
+
+      if (result.success) {
         setConnectionStatus('connected');
-        console.log('Connected to Jarvis backend via WebSocket');
-      } catch (error) {
-        console.error('Backend connection error:', error);
-        setConnectionStatus('error');
+      } else {
+        setConnectionStatus('disconnected');
       }
     };
 
-    initializeBackend();
+    init();
+
+    const onConnect = () => {
+      if (!isMounted) return;
+      setConnectionStatus('connected');
+    };
+
+    const onDisconnect = (info) => {
+      if (!isMounted) return;
+      const { reason } = info || {};
+      if (reason === 'io client disconnect') {
+        setConnectionStatus('disconnected');
+      } else {
+        setConnectionStatus('reconnecting');
+      }
+    };
+
+    const onConnectError = () => {
+      if (!isMounted) return;
+      setConnectionStatus('disconnected');
+    };
+
+    const onReconnectAttempt = () => {
+      if (!isMounted) return;
+      setConnectionStatus('reconnecting');
+    };
+
+    const onReconnect = () => {
+      if (!isMounted) return;
+      setConnectionStatus('connected');
+    };
+
+    ApiService.addEventListener('connect', onConnect);
+    ApiService.addEventListener('disconnect', onDisconnect);
+    ApiService.addEventListener('connect_error', onConnectError);
+    ApiService.addEventListener('reconnect_attempt', onReconnectAttempt);
+    ApiService.addEventListener('reconnect', onReconnect);
+
+    return () => {
+      isMounted = false;
+      ApiService.removeEventListener('connect', onConnect);
+      ApiService.removeEventListener('disconnect', onDisconnect);
+      ApiService.removeEventListener('connect_error', onConnectError);
+      ApiService.removeEventListener('reconnect_attempt', onReconnectAttempt);
+      ApiService.removeEventListener('reconnect', onReconnect);
+      ApiService.disconnectSocket();
+    };
   }, []);
-
-  const handlePanelOpen = (panelType) => {
-    setActivePanel(panelType);
-  };
-
-  const handlePanelClose = () => {
-    setActivePanel(null);
-  };
 
   return (
     <ThemeProvider>
-      <GlobalContainer>
-        {/* Animated particle background */}
-        <ParticleSystem />
-        
-        {/* Status bar */}
-        <StatusBar />
-        
-        <AppLayout>
-          {/* Navigation sidebar */}
-          <Sidebar onPanelOpen={handlePanelOpen} />
-          
-          {/* Main content area */}
-          <MainContent>
-            {/* Central AI Orb */}
-            <OrbContainer>
-              <AIOrb connectionStatus={connectionStatus} />
-            </OrbContainer>
-            
-            {/* Chat interface */}
-            <ChatContainer>
-              <ChatInterface />
-            </ChatContainer>
-          </MainContent>
-        </AppLayout>
-        
-        {/* Floating panels */}
-        <MemoryPanel 
-          isVisible={activePanel === 'memory'} 
-          onClose={handlePanelClose} 
-        />
-        
-        <UpdatePanel 
-          isVisible={activePanel === 'updates'} 
-          onClose={handlePanelClose} 
-        />
-        
-        <SecurityPanel 
-          isVisible={activePanel === 'security'} 
-          onClose={handlePanelClose} 
-        />
-        
-        {/* Additional panels can be added here */}
-        {/* Context Panel, Logs Panel, Settings Panel */}
-      </GlobalContainer>
+      <div className="app-container">
+        <StatusBar connectionStatus={connectionStatus} />
+        <Sidebar />
+        <AIOrb />
+      </div>
     </ThemeProvider>
   );
 }

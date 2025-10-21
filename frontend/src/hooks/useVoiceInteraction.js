@@ -13,6 +13,7 @@ const useVoiceInteraction = () => {
   const synthRef = useRef(null);
   const isListeningRef = useRef(false);
   const wakeWordTimeoutRef = useRef(null);
+  const wakeWordHandlerRef = useRef(null);
 
   // Initialize speech recognition and synthesis
   useEffect(() => {
@@ -113,7 +114,11 @@ const useVoiceInteraction = () => {
     // Set timeout for command processing
     wakeWordTimeoutRef.current = setTimeout(() => {
       if (command) {
-        onWakeWordDetected?.(command);
+        try {
+          wakeWordHandlerRef.current?.(command);
+        } catch (e) {
+          console.error('Wake word handler error:', e);
+        }
       }
     }, 1000);
   }, []);
@@ -201,6 +206,10 @@ const useVoiceInteraction = () => {
     setConfidence(0);
   }, []);
 
+  const setWakeWordHandler = useCallback((handler) => {
+    wakeWordHandlerRef.current = typeof handler === 'function' ? handler : null;
+  }, []);
+
   return {
     // State
     isListening,
@@ -221,7 +230,8 @@ const useVoiceInteraction = () => {
     getVoices,
 
     // Utilities
-    setVoiceMode
+    setVoiceMode,
+    setWakeWordHandler
   };
 };
 
