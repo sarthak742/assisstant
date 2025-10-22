@@ -2,206 +2,256 @@
 # -*- coding: utf-8 -*-
 
 """
-Memory Manager Module for Jarvis AI Assistant (Enhanced v2)
-Manages persistent and contextual memory with smart separation:
-- Short-term (session context)
-- Long-term (summarized historical data)
-- Persistent preferences
-Adds: auto-trim, contextual recall, and future semantic embedding hooks.
+Jarvis AI — Hybrid Memory Manager (Final Enhanced)
+Features:
+- Semantic embeddings for conceptual recall.
+- Auto context injection for reasoning pipeline.
+- Encrypted local memory with Fernet symmetric key.
+- LLM-based summarization for long-term knowledge retention.
 """
 
 import os
 import json
 import logging
+import numpy as np
 from datetime import datetime
 from typing import Dict, List, Any, Optional
+
+# ---------------- Dependencies ----------------
+try:
+    from cryptography.fernet import Fernet
+    from sentence_transformers import SentenceTransformer, util
+    import openai
+    ENHANCED_MEMORY_READY = True
+except ImportError:
+    ENHANCED_MEMORY_READY = False
+    logging.warning("Missing dependencies. Run: pip install cryptography sentence-transformers openai")
 
 logger = logging.getLogger("Jarvis.MemoryManager")
 
 class MemoryManager:
-    """
-    Adaptive Memory Manager for Jarvis.
-    Handles short-term context (per session), long-term memory (stored + summarized),
-    and persistent user preferences.
-    """
+    """Advanced hybrid memory system managing contextual, semantic, and secure recall."""
 
     def __init__(self, data_dir: Optional[str] = None):
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.data_dir = data_dir or os.path.join(base_dir, 'data')
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.data_dir = data_dir or os.path.join(base, "data")
         os.makedirs(self.data_dir, exist_ok=True)
 
-        # File paths
-        self.memory_files = {
+        # File references
+        self.files = {
             "interactions": os.path.join(self.data_dir, "interactions.json"),
             "preferences": os.path.join(self.data_dir, "preferences.json"),
             "context": os.path.join(self.data_dir, "context.json"),
-            "summaries": os.path.join(self.data_dir, "summaries.json")
+            "embeddings": os.path.join(self.data_dir, "embeddings.npy"),
+            "key": os.path.join(self.data_dir, "secret.key"),
         }
 
-        # Load persisted states
-        self.interactions = self._load_data("interactions", [])
-        self.preferences  = self._load_data("preferences", {})
-        self.context      = self._load_data("context", {})
-        self.summaries    = self._load_data("summaries", [])
+        # Loaders
+        self.interactions = self._load_json("interactions", [])
+        self.preferences = self._load_json("preferences", {})
+        self.context = self._load_json("context", {})
+        self.embeddings = self._load_embeddings()
 
-        # Volatile session memory (short-term)
+        # Encryption key
+        self.cipher = self._init_cipher()
+
+        # Semantic & model setup
+        if ENHANCED_MEMORY_READY:
+            self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        else:
+            self.model = None
+
+        # Runtime session context
         self.session_context: Dict[str, Any] = {}
+        logger.info("Hybrid Memory Manager initialized (final build).")
 
-        logger.info("Enhanced Memory Manager initialized.")
-
-    # ------------------- Persistence Utilities -------------------
-    def _load_data(self, key: str, default: Any) -> Any:
-        path = self.memory_files[key]
+    # ------------------------------------------------------------
+    # UTILS
+    # ------------------------------------------------------------
+    def _load_json(self, key: str, default: Any) -> Any:
+        path = self.files[key]
         try:
             if os.path.exists(path):
                 with open(path, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    data = f.read()
+                    return json.loads(self.decrypt_data(data))
             return default
         except Exception as e:
             logger.error(f"Error loading {path}: {e}")
             return default
 
-    def _save_data(self, key: str, data: Any) -> bool:
-        path = self.memory_files[key]
+    def _save_json(self, key: str, data: Any):
+        path = self.files[key]
         try:
+            payload = self.encrypt_data(json.dumps(data, ensure_ascii=False, indent=2))
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            return True
+                f.write(payload)
         except Exception as e:
             logger.error(f"Error saving {path}: {e}")
-            return False
 
-    # ------------------- Interaction Memory -------------------
-    def store_interaction(self, speaker: str, message: str) -> bool:
-        """Stores single interaction and maintains rolling window."""
+    def _init_cipher(self):
         try:
-            interaction = {
-                "time": datetime.now().isoformat(),
-                "speaker": speaker,
-                "message": message
-            }
-            self.interactions.append(interaction)
-
-            # Keep manageable window
-            if len(self.interactions) > 1000:
-                self._archive_old_interactions()
-
-            return self._save_data("interactions", self.interactions)
-        except Exception as e:
-            logger.error(f"Interaction store failed: {e}")
-            return False
-
-    def _archive_old_interactions(self):
-        """Summarizes old interactions before trimming (for long-term context)."""
-        try:
-            old_block = self.interactions[:-500]
-            summary_text = self._generate_summary_text(old_block)
-            self.summaries.append({
-                "summary": summary_text,
-                "timestamp": datetime.now().isoformat()
-            })
-            self.interactions = self.interactions[-500:]
-            self._save_data("summaries", self.summaries)
-            logger.info("Archived and summarized old interactions.")
-        except Exception as e:
-            logger.error(f"Archiving error: {e}")
-
-    def get_recent_interactions(self, count: int = 10) -> List[Dict[str, str]]:
-        return self.interactions[-count:]
-
-    def get_conversation_history(self, as_text: bool = False) -> Any:
-        if not as_text:
-            return self.interactions
-        formatted = []
-        for inter in self.interactions[-50:]:
-            t = datetime.fromisoformat(inter["time"]).strftime("%H:%M:%S")
-            speaker = "You" if inter["speaker"] == "user" else "Jarvis"
-            formatted.append(f"[{t}] {speaker}: {inter['message']}")
-        return "\n".join(formatted)
-
-    def clear_interactions(self) -> bool:
-        self.interactions = []
-        return self._save_data("interactions", self.interactions)
-
-    # ------------------- Context Memory -------------------
-    def store_context(self, key: str, value: Any, persist: bool = False):
-        try:
-            context_obj = {"value": value, "timestamp": datetime.now().isoformat()}
-            if persist:
-                self.context[key] = context_obj
-                return self._save_data("context", self.context)
+            if not os.path.exists(self.files["key"]):
+                key = Fernet.generate_key()
+                with open(self.files["key"], "wb") as f:
+                    f.write(key)
             else:
-                self.session_context[key] = context_obj
-                return True
+                with open(self.files["key"], "rb") as f:
+                    key = f.read()
+            return Fernet(key)
         except Exception as e:
-            logger.error(f"Context store error: {e}")
-            return False
+            logger.error(f"Failed to init encryption key: {e}")
+            return None
 
-    def get_context(self, key: str, default: Any = None, use_session: bool = True) -> Any:
-        source = self.session_context.get(key) if use_session else None
-        if not source:
-            source = self.context.get(key)
-        return source.get("value", default) if source else default
-
-    def clear_context(self, persistent: bool = False) -> bool:
+    def _load_embeddings(self):
+        path = self.files["embeddings"]
         try:
-            if persistent:
-                self.context = {}
-                self._save_data("context", self.context)
-            self.session_context = {}
+            return np.load(path) if os.path.exists(path) else np.zeros((0, 384))
+        except Exception:
+            return np.zeros((0, 384))
+
+    def _save_embeddings(self):
+        path = self.files["embeddings"]
+        try:
+            np.save(path, self.embeddings)
+        except Exception as e:
+            logger.error(f"Embedding save failed: {e}")
+
+    # ------------------------------------------------------------
+    # ENCRYPTION UTILITIES
+    # ------------------------------------------------------------
+    def encrypt_data(self, text: str) -> str:
+        if self.cipher:
+            return self.cipher.encrypt(text.encode()).decode()
+        return text
+
+    def decrypt_data(self, text: str) -> str:
+        if self.cipher:
+            try:
+                return self.cipher.decrypt(text.encode()).decode()
+            except:
+                pass
+        return text
+
+    # ------------------------------------------------------------
+    # MEMORY LAYERS: INTERACTION + SEMANTIC ENCODING
+    # ------------------------------------------------------------
+    def store_interaction(self, speaker: str, message: str) -> bool:
+        """Store a conversation turn and semantic vector for meaning recall."""
+        try:
+            record = {"time": datetime.now().isoformat(), "speaker": speaker, "message": message}
+            self.interactions.append(record)
+
+            if ENHANCED_MEMORY_READY:
+                embed = self.model.encode([message], convert_to_numpy=True)
+                self.embeddings = np.vstack([self.embeddings, embed]) if self.embeddings.size else embed
+                self._save_embeddings()
+
+            # Auto summarization trigger every 250 entries
+            if len(self.interactions) % 250 == 0:
+                self._summarize_memory()
+
+            if len(self.interactions) > 1000:
+                self.interactions = self.interactions[-1000:]
+                self.embeddings = self.embeddings[-1000:]
+                self._save_embeddings()
+
+            self._save_json("interactions", self.interactions)
             return True
         except Exception as e:
-            logger.error(f"Context clear error: {e}")
+            logger.error(f"Interaction save failed: {e}")
             return False
 
-    # ------------------- Preferences -------------------
-    def store_preference(self, key: str, value: Any):
+    def _summarize_memory(self):
+        """LLM-powered summarization for long-term recall."""
+        key = self.preferences.get("openai_api", "")
+        if not key:
+            return
         try:
-            self.preferences[key] = value
-            return self._save_data("preferences", self.preferences)
+            openai.api_key = key
+            text_entries = [i["message"] for i in self.interactions[-50:]]
+            combined = "\n".join(text_entries)
+            prompt = f"Summarize these 50 recent conversation entries briefly and factually:\n{combined}"
+            resp = openai.ChatCompletion.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "system", "content": "You are an AI summarizer."},
+                          {"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=250
+            )
+            summary = resp.choices[0].message["content"].strip()
+            self.context["summary_" + datetime.now().strftime("%H%M%S")] = {"value": summary}
+            self._save_json("context", self.context)
+            logger.info("LLM memory summarization completed.")
         except Exception as e:
-            logger.error(f"Preference storage error: {e}")
-            return False
+            logger.error(f"Summarization failed: {e}")
+
+    # ------------------------------------------------------------
+    # SEMANTIC RECALL
+    # ------------------------------------------------------------
+    def recall_similar(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+        """Returns past interactions semantically similar to the query."""
+        if not ENHANCED_MEMORY_READY or self.embeddings.size == 0:
+            return []
+        try:
+            q_emb = self.model.encode([query], convert_to_numpy=True)
+            scores = util.cos_sim(q_emb, self.embeddings)[0]
+            top_indices = np.argsort(-scores)[:top_k]
+            return [{
+                "message": self.interactions[i]["message"],
+                "score": round(float(scores[i]), 3),
+                "time": self.interactions[i]["time"]
+            } for i in top_indices]
+        except Exception as e:
+            logger.error(f"Semantic recall failed: {e}")
+            return []
+
+    # ------------------------------------------------------------
+    # CONTEXTUAL + AUTOMATIC INJECTION MODE
+    # ------------------------------------------------------------
+    def inject_context_into_prompt(self, query: str) -> str:
+        """
+        Builds an LLM-ready augmented prompt combining:
+        - Last few interactions
+        - Top semantic recalls
+        - Persistent summaries
+        """
+        recents = [i["message"] for i in self.interactions[-5:]]
+        recalls = [r["message"] for r in self.recall_similar(query, 3)]
+        summaries = [v["value"] for k, v in self.context.items() if k.startswith("summary_")]
+        prompt_context = " ".join(recents + recalls + summaries[-2:])
+        return f"Previous context: {prompt_context}\nUser query: {query}"
+
+    # ------------------------------------------------------------
+    # PREFERENCES + CONTEXT STORAGE
+    # ------------------------------------------------------------
+    def store_preference(self, key: str, value: Any): 
+        self.preferences[key] = value
+        self._save_json("preferences", self.preferences)
 
     def get_preference(self, key: str, default: Any = None):
         return self.preferences.get(key, default)
 
-    # ------------------- Smart Recall -------------------
-    def recall_contextual_summary(self) -> str:
-        """
-        Returns a summarized form of long-term memory for reasoning or LLM prompt injection.
-        """
-        try:
-            summaries = [s["summary"] for s in self.summaries[-3:]]
-            combined = " ".join(summaries)
-            if not combined:
-                recent = " ".join([i["message"] for i in self.interactions[-10:]])
-                return f"Recent memory: {recent}"
-            return f"Historical context: {combined}"
-        except Exception as e:
-            logger.error(f"Recall error: {e}")
-            return ""
+    def store_context(self, key: str, value: Any, persist: bool = True):
+        store = {"value": value, "timestamp": datetime.now().isoformat()}
+        (self.context if persist else self.session_context)[key] = store
+        if persist:
+            self._save_json("context", self.context)
 
-    def _generate_summary_text(self, interactions: List[Dict]) -> str:
-        """
-        Summarizes a batch of old interactions (extractive-style).
-        Simple heuristic placeholder for future LLM summarization.
-        """
-        try:
-            user_messages = [i["message"] for i in interactions if i["speaker"] == "user"]
-            joined = " ".join(user_messages)
-            if len(joined) > 500:
-                return "Summary: " + joined[:500] + "..."
-            return "Summary: " + joined
-        except Exception as e:
-            logger.error(f"Summary generation failed: {e}")
-            return ""
+    def get_context(self, key: str, default: Any=None):
+        val = self.session_context.get(key) or self.context.get(key)
+        return val.get("value", default) if val else default
 
-    # ------------------- Security (Placeholder) -------------------
-    def encrypt_data(self, text: str) -> str:
-        # Future AES/fernet encryption integration
-        return text
+    # ------------------------------------------------------------
+    # CLEAR
+    # ------------------------------------------------------------
+    def clear_all(self):
+        self.interactions, self.context, self.preferences = [], {}, {}
+        self.embeddings = np.zeros((0, 384))
+        for key in ["interactions", "context", "preferences"]:
+            self._save_json(key, {})
+        self._save_embeddings()
+        logger.info("Memory cleared successfully.")
 
-    def decrypt_data(self, text: str) -> str:
-        return text
+
 
