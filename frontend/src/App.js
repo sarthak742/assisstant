@@ -4,6 +4,16 @@ import ApiService from './services/api';
 import Sidebar from './components/Navigation/Sidebar';
 import AIOrb from './components/AIOrb/AIOrb';
 import { ThemeProvider } from './contexts/ThemeContext';
+import io from "socket.io-client";
+
+const socket = io("http://localhost:5000");
+
+socket.on("connect", () => console.log("Connected to Jarvis backend"));
+socket.on("jarvis_response", (res) => {
+  console.log("Jarvis says:", res.text);
+});
+socket.on("task_update", (t) => console.log("Task finished:", t.result));
+
 
 function App() {
   const [connectionStatus, setConnectionStatus] = useState('connecting');
