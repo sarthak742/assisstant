@@ -374,4 +374,11 @@ export const ApiService = {
   }
 };
 
+ApiService.startVoiceRecognition = () => socket.emit('start_voice_recognition');
+ApiService.stopVoiceRecognition = () => socket.emit('stop_voice_recognition');
+ApiService.sendChatMessage = (message) => socket.emit('user_message', { text: message });
+
 export default ApiService;
+// Hybrid Chat + Voice bridge for ChatPanel
+
+
