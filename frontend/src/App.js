@@ -1,22 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import StatusBar from './components/StatusBar/StatusBar';
-import ApiService from './services/api';
-import Sidebar from './components/Navigation/Sidebar';
-import AIOrb from './components/AIOrb/AIOrb';
-import { ThemeProvider } from './contexts/ThemeContext';
-import io from "socket.io-client";
-
-const socket = io("http://localhost:5000");
-
-socket.on("connect", () => console.log("Connected to Jarvis backend"));
-socket.on("jarvis_response", (res) => {
-  console.log("Jarvis says:", res.text);
-});
-socket.on("task_update", (t) => console.log("Task finished:", t.result));
-
+import React, { useEffect, useState } from "react";
+import StatusBar from "./components/StatusBar/StatusBar";
+import Sidebar from "./components/Navigation/Sidebar";
+import AIOrb from "./components/AIOrb/AIOrb";
+import ChatPanel from "./components/ChatPanel";
+import ApiService from "./services/api";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 function App() {
-  const [connectionStatus, setConnectionStatus] = useState('connecting');
+  const [connectionStatus, setConnectionStatus] = useState("connecting");
 
   useEffect(() => {
     let isMounted = true;
@@ -26,9 +17,9 @@ function App() {
       if (!isMounted) return;
 
       if (result.success) {
-        setConnectionStatus('connected');
+        setConnectionStatus("connected");
       } else {
-        setConnectionStatus('disconnected');
+        setConnectionStatus("disconnected");
       }
     };
 
@@ -36,47 +27,43 @@ function App() {
 
     const onConnect = () => {
       if (!isMounted) return;
-      setConnectionStatus('connected');
+      setConnectionStatus("connected");
     };
 
     const onDisconnect = (info) => {
       if (!isMounted) return;
       const { reason } = info || {};
-      if (reason === 'io client disconnect') {
-        setConnectionStatus('disconnected');
-      } else {
-        setConnectionStatus('reconnecting');
-      }
+      setConnectionStatus(reason === "io client disconnect" ? "disconnected" : "reconnecting");
     };
 
     const onConnectError = () => {
       if (!isMounted) return;
-      setConnectionStatus('disconnected');
+      setConnectionStatus("disconnected");
     };
 
     const onReconnectAttempt = () => {
       if (!isMounted) return;
-      setConnectionStatus('reconnecting');
+      setConnectionStatus("reconnecting");
     };
 
     const onReconnect = () => {
       if (!isMounted) return;
-      setConnectionStatus('connected');
+      setConnectionStatus("connected");
     };
 
-    ApiService.addEventListener('connect', onConnect);
-    ApiService.addEventListener('disconnect', onDisconnect);
-    ApiService.addEventListener('connect_error', onConnectError);
-    ApiService.addEventListener('reconnect_attempt', onReconnectAttempt);
-    ApiService.addEventListener('reconnect', onReconnect);
+    ApiService.addEventListener("connect", onConnect);
+    ApiService.addEventListener("disconnect", onDisconnect);
+    ApiService.addEventListener("connect_error", onConnectError);
+    ApiService.addEventListener("reconnect_attempt", onReconnectAttempt);
+    ApiService.addEventListener("reconnect", onReconnect);
 
     return () => {
       isMounted = false;
-      ApiService.removeEventListener('connect', onConnect);
-      ApiService.removeEventListener('disconnect', onDisconnect);
-      ApiService.removeEventListener('connect_error', onConnectError);
-      ApiService.removeEventListener('reconnect_attempt', onReconnectAttempt);
-      ApiService.removeEventListener('reconnect', onReconnect);
+      ApiService.removeEventListener("connect", onConnect);
+      ApiService.removeEventListener("disconnect", onDisconnect);
+      ApiService.removeEventListener("connect_error", onConnectError);
+      ApiService.removeEventListener("reconnect_attempt", onReconnectAttempt);
+      ApiService.removeEventListener("reconnect", onReconnect);
       ApiService.disconnectSocket();
     };
   }, []);
@@ -86,7 +73,11 @@ function App() {
       <div className="app-container">
         <StatusBar connectionStatus={connectionStatus} />
         <Sidebar />
-        <AIOrb />
+        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+          <AIOrb />
+          {/* Hybrid chat + voice interaction panel */}
+          <ChatPanel />
+        </div>
       </div>
     </ThemeProvider>
   );
