@@ -2,398 +2,172 @@
 # -*- coding: utf-8 -*-
 
 """
-AI & Chat Module for Jarvis AI Assistant
-Handles natural language conversation, question answering, and task assistance.
+AI & Chat Module for Jarvis AI Assistant (Enhanced)
+Handles natural conversation, task dialogue, reasoning-based answers, and memory-reflective chat.
 """
 
 import os
 import logging
 import json
 import re
-import time
-from typing import Dict, List, Any, Optional
+import openai
 from datetime import datetime
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger("Jarvis.AIChatModule")
 
 class AIChatModule:
     """
-    AI & Chat Module class that handles natural language conversation,
-    question answering, and task assistance.
+    Conversational intelligence engine for Jarvis.
+    Uses contextual reasoning, memory reflection, and LLM fallback for natural responses.
     """
-    
+
     def __init__(self, memory_manager):
-        """
-        Initialize the AI & Chat Module.
-        
-        Args:
-            memory_manager: Reference to the Memory Manager module
-        """
         self.memory = memory_manager
         self.responses = self._load_responses()
         self.context = {}
-        
+        self.api_keys = self.memory.get_preference("api_keys") or {}
         logger.info("AI & Chat Module initialized")
-    
+
+    # ------------------- LOADERS -------------------
     def _load_responses(self) -> Dict[str, List[str]]:
-        """
-        Load predefined responses from a JSON file.
-        
-        Returns:
-            Dictionary of response categories and their templates
-        """
-        responses_file = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            'data',
-            'responses.json'
-        )
-        
-        default_responses = {
-            "greeting": [
-                "Hello! How can I help you today?",
-                "Hi there! What can I do for you?",
-                "Greetings! How may I assist you?"
-            ],
-            "farewell": [
-                "Goodbye! Have a great day!",
-                "See you later!",
-                "Until next time!"
-            ],
-            "thanks": [
-                "You're welcome!",
-                "Happy to help!",
-                "My pleasure!"
-            ],
-            "unknown": [
-                "I'm not sure I understand. Could you rephrase that?",
-                "I don't have an answer for that yet.",
-                "I'm still learning about that."
-            ],
-            "fallback": [
-                "I'm sorry, I couldn't process that request.",
-                "I encountered an issue with that request.",
-                "I'm having trouble with that right now."
-            ]
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "responses.json")
+        defaults = {
+            "greeting": ["Hello! How can I help?", "Hi there!", "Greetings! What can I do for you?"],
+            "farewell": ["Goodbye!", "See you later!", "Until next time!"],
+            "thanks": ["You're welcome!", "Glad to help!", "My pleasure!"],
+            "unknown": ["I'm not sure I understand.", "Can you rephrase that?"],
+            "fallback": ["I encountered a problem with that request."]
         }
-        
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(defaults, f, indent=2)
         try:
-            if os.path.exists(responses_file):
-                with open(responses_file, 'r', encoding='utf-8') as f:
-                    loaded_responses = json.load(f)
-                    # Merge with default responses, keeping custom ones if they exist
-                    for category, templates in default_responses.items():
-                        if category not in loaded_responses:
-                            loaded_responses[category] = templates
-                    return loaded_responses
-            else:
-                # Create the default responses file
-                os.makedirs(os.path.dirname(responses_file), exist_ok=True)
-                with open(responses_file, 'w', encoding='utf-8') as f:
-                    json.dump(default_responses, f, ensure_ascii=False, indent=2)
-                return default_responses
+            with open(path, "r", encoding="utf-8") as f:
+                custom = json.load(f)
+                for key, val in defaults.items():
+                    if key not in custom:
+                        custom[key] = val
+                return custom
         except Exception as e:
-            logger.error(f"Error loading responses: {str(e)}")
-            return default_responses
-    
+            logger.error(f"Error loading responses: {e}")
+            return defaults
+
+    # ------------------- MAIN INTERACTION -------------------
     def generate_response(self, query: str) -> str:
-        """
-        Generate a response to a user query.
-        
-        Args:
-            query: User query string
-            
-        Returns:
-            Response string
-        """
         try:
             logger.info(f"Generating response for: {query}")
-            
-            # Update context with the current query
-            self.context['last_query'] = query
-            self.context['last_query_time'] = datetime.now().isoformat()
-            
-            # Check for special query types
-            if self._is_greeting(query):
+            self.context["last_query"] = query
+            self.context["last_query_time"] = datetime.now().isoformat()
+            q = query.lower()
+
+            if self._is_greeting(q):
                 return self._get_response("greeting")
-            
-            if self._is_farewell(query):
+            if self._is_farewell(q):
                 return self._get_response("farewell")
-            
-            if self._is_thanks(query):
+            if self._is_thanks(q):
                 return self._get_response("thanks")
-            
-            # Check for task assistance queries
-            if self._is_reminder_request(query):
+            if self._is_reminder_request(q):
                 return self._handle_reminder(query)
-            
-            if self._is_alarm_request(query):
+            if self._is_alarm_request(q):
                 return self._handle_alarm(query)
-            
-            if self._is_note_request(query):
+            if self._is_note_request(q):
                 return self._handle_note(query)
-            
-            # Check for question answering
-            if self._is_question(query):
+            if self._is_question(q):
                 return self._answer_question(query)
-            
-            # Default to a general response
-            return self._generate_general_response(query)
-            
+
+            # LLM reasoning fallback for open-ended conversation
+            return self._generate_reasoning_response(query)
         except Exception as e:
-            logger.error(f"Error generating response: {str(e)}")
+            logger.error(f"Error generating response: {e}")
             return self._get_response("fallback")
-    
-    def _get_response(self, category: str) -> str:
-        """
-        Get a random response from a category.
-        
-        Args:
-            category: Response category
-            
-        Returns:
-            Response string
-        """
+
+    # ------------------- CATEGORICAL DETECTION -------------------
+    def _get_response(self, cat: str) -> str:
         import random
-        
-        if category in self.responses and self.responses[category]:
-            return random.choice(self.responses[category])
-        else:
-            return "I'm not sure what to say about that."
-    
-    def _is_greeting(self, query: str) -> bool:
-        """Check if the query is a greeting."""
-        greetings = ['hello', 'hi', 'hey', 'greetings', 'good morning', 'good afternoon', 'good evening']
-        return any(greeting in query.lower() for greeting in greetings)
-    
-    def _is_farewell(self, query: str) -> bool:
-        """Check if the query is a farewell."""
-        farewells = ['goodbye', 'bye', 'see you', 'farewell', 'good night', 'later']
-        return any(farewell in query.lower() for farewell in farewells)
-    
-    def _is_thanks(self, query: str) -> bool:
-        """Check if the query is an expression of gratitude."""
-        thanks = ['thank you', 'thanks', 'appreciate it', 'grateful']
-        return any(thank in query.lower() for thank in thanks)
-    
-    def _is_reminder_request(self, query: str) -> bool:
-        """Check if the query is a reminder request."""
-        reminder_patterns = [
-            r'remind me (to|about)',
-            r'set a reminder',
-            r'don\'t let me forget'
-        ]
-        return any(re.search(pattern, query.lower()) for pattern in reminder_patterns)
-    
-    def _is_alarm_request(self, query: str) -> bool:
-        """Check if the query is an alarm request."""
-        alarm_patterns = [
-            r'set (an|a) alarm',
-            r'wake me up at',
-            r'alarm for'
-        ]
-        return any(re.search(pattern, query.lower()) for pattern in alarm_patterns)
-    
-    def _is_note_request(self, query: str) -> bool:
-        """Check if the query is a note request."""
-        note_patterns = [
-            r'take a note',
-            r'write (this|that) down',
-            r'make a note',
-            r'save this'
-        ]
-        return any(re.search(pattern, query.lower()) for pattern in note_patterns)
-    
-    def _is_question(self, query: str) -> bool:
-        """Check if the query is a question."""
-        # Check for question words or question marks
-        question_indicators = ['what', 'who', 'where', 'when', 'why', 'how', 'can', 'could', 'would', 'should', 'is', 'are', 'do', 'does', '?']
-        return any(indicator in query.lower().split() for indicator in question_indicators) or '?' in query
-    
-    def _handle_reminder(self, query: str) -> str:
-        """
-        Handle a reminder request.
-        
-        Args:
-            query: User query string
-            
-        Returns:
-            Response string
-        """
-        # Extract reminder details (this is a simplified implementation)
-        # In a real implementation, you would use NLP to extract the task and time
-        
-        # Store the reminder in memory
-        reminder = {
-            'type': 'reminder',
-            'content': query,
-            'created_at': datetime.now().isoformat(),
-            'status': 'active'
-        }
-        
-        self.memory.store_context('reminders', 
-                                 self.memory.get_context('reminders', []) + [reminder])
-        
-        return "I've set a reminder for you. I'll remind you about that."
-    
-    def _handle_alarm(self, query: str) -> str:
-        """
-        Handle an alarm request.
-        
-        Args:
-            query: User query string
-            
-        Returns:
-            Response string
-        """
-        # Extract alarm details (this is a simplified implementation)
-        # In a real implementation, you would use NLP to extract the time
-        
-        # Store the alarm in memory
-        alarm = {
-            'type': 'alarm',
-            'content': query,
-            'created_at': datetime.now().isoformat(),
-            'status': 'active'
-        }
-        
-        self.memory.store_context('alarms', 
-                                self.memory.get_context('alarms', []) + [alarm])
-        
-        return "I've set an alarm for you."
-    
-    def _handle_note(self, query: str) -> str:
-        """
-        Handle a note request.
-        
-        Args:
-            query: User query string
-            
-        Returns:
-            Response string
-        """
-        # Extract note content (this is a simplified implementation)
-        # In a real implementation, you would use NLP to extract the note content
-        
-        # Remove the command part to get the note content
-        note_content = re.sub(r'^(take a note|write this down|make a note|save this)[\s:]*', '', query, flags=re.IGNORECASE).strip()
-        
-        if not note_content:
-            note_content = "Empty note"
-        
-        # Store the note in memory
-        note = {
-            'type': 'note',
-            'content': note_content,
-            'created_at': datetime.now().isoformat()
-        }
-        
-        self.memory.store_context('notes', 
-                                self.memory.get_context('notes', []) + [note])
-        
-        return f"I've saved your note: '{note_content}'"
-    
+        return random.choice(self.responses.get(cat, ["I’m not sure what to say."]))
+
+    def _is_greeting(self, q): return any(x in q for x in ["hello", "hi", "hey", "good morning", "good evening"])
+    def _is_farewell(self, q): return any(x in q for x in ["bye", "goodbye", "see you", "later"])
+    def _is_thanks(self, q): return any(x in q for x in ["thank you", "thanks", "appreciate"])
+    def _is_reminder_request(self, q): return bool(re.search(r"(remind|reminder)", q))
+    def _is_alarm_request(self, q): return bool(re.search(r"(alarm|wake up)", q))
+    def _is_note_request(self, q): return bool(re.search(r"(note|remember this|write down|save this)", q))
+    def _is_question(self, q): return "?" in q or re.search(r"\b(what|who|why|how|where|when)\b", q)
+
+    # ------------------- TASK HANDLERS -------------------
+    def _handle_reminder(self, q): return self._store_task("reminder", q, "I've set a reminder.")
+    def _handle_alarm(self, q): return self._store_task("alarm", q, "Alarm scheduled.")
+    def _handle_note(self, q): return self._store_task("note", q, "Note saved.")
+
+    def _store_task(self, kind: str, content: str, msg: str) -> str:
+        data = self.memory.get_context(f"{kind}s", [])
+        data.append({"type": kind, "content": content, "created_at": datetime.now().isoformat(), "status": "active"})
+        self.memory.store_context(f"{kind}s", data)
+        return msg
+
+    # ------------------- KNOWLEDGE & QUESTION HANDLING -------------------
     def _answer_question(self, query: str) -> str:
-        """
-        Answer a question.
-        
-        Args:
-            query: User question string
-            
-        Returns:
-            Answer string
-        """
-        # This is a simplified implementation
-        # In a real implementation, you would use an LLM or knowledge base
-        
-        # Check for time-related questions
-        if re.search(r'what (time|day|date) is it', query.lower()):
+        q = query.lower()
+        if "time" in q or "date" in q:
             now = datetime.now()
-            return f"It's {now.strftime('%I:%M %p')} on {now.strftime('%A, %B %d, %Y')}."
-        
-        # Check for personal questions about Jarvis
-        if re.search(r'who are you', query.lower()):
-            return "I'm Jarvis, your personal AI assistant. I'm here to help you with various tasks."
-        
-        if re.search(r'what can you do', query.lower()):
-            return ("I can help you with various tasks including answering questions, setting reminders and alarms, "
-                   "taking notes, controlling your system, searching the web, and more.")
-        
-        # For other questions, return a generic response
-        return "I don't have a specific answer for that question yet. Would you like me to search the web for you?"
-    
-    def _generate_general_response(self, query: str) -> str:
+            return f"It is {now.strftime('%I:%M %p')} on {now.strftime('%A, %B %d, %Y')}."
+        if "who are you" in q:
+            return "I'm Jarvis, your personal assistant connected to your local and online systems."
+        if "what can you do" in q:
+            return "I can chat, run system tasks, fetch data, or reason through questions using AI integration."
+
+        # Default reasoning fallback
+        return self._generate_reasoning_response(query)
+
+    # ------------------- MEMORY-AWARE LLM INTEGRATION -------------------
+    def _generate_reasoning_response(self, query: str) -> str:
         """
-        Generate a general response for queries that don't match specific patterns.
-        
-        Args:
-            query: User query string
-            
-        Returns:
-            Response string
+        Uses OpenAI GPT (or compatible model) for contextual responses, incorporating memory and query.
         """
-        # Check recent conversation history for context
-        recent_interactions = self.memory.get_recent_interactions(5)
-        
-        # If we have context, try to generate a more relevant response
-        if recent_interactions:
-            # This is where you would integrate with a more sophisticated language model
-            # For now, we'll just return a simple response
-            return "I understand you're asking about that. How can I help you further?"
-        
-        # Default response if we can't generate a contextual one
-        return self._get_response("unknown")
-    
-    def summarize_text(self, text: str, max_length: int = 100) -> str:
-        """
-        Summarize a text.
-        
-        Args:
-            text: Text to summarize
-            max_length: Maximum length of the summary
-            
-        Returns:
-            Summarized text
-        """
-        # This is a simplified implementation
-        # In a real implementation, you would use an NLP model for summarization
-        
-        # Simple extractive summarization by taking the first few sentences
-        sentences = re.split(r'(?<=[.!?])\s+', text)
-        
-        summary = ""
-        for sentence in sentences:
-            if len(summary) + len(sentence) <= max_length:
-                summary += sentence + " "
-            else:
-                break
-        
-        return summary.strip()
-    
+        llm_key = self.api_keys.get("openai", "")
+        if not llm_key:
+            return self._get_response("unknown")
+
+        try:
+            import openai
+            openai.api_key = llm_key
+
+            # Combine memory context with user query
+            history = self.memory.get_recent_interactions(3)
+            summary_context = " | ".join([i.get("message", "") for i in history]) if history else ""
+            prompt = (
+                f"You are Jarvis, an intelligent conversational assistant. "
+                f"Context: {summary_context}. User query: {query}. "
+                f"Provide a natural, friendly, and informative answer."
+            )
+
+            response = openai.ChatCompletion.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are an intelligent AI chat assistant named Jarvis."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=300
+            )
+            message = response.choices[0].message["content"].strip()
+
+            # Log and store interaction in memory
+            self.memory.store_interaction("user", query)
+            self.memory.store_interaction("jarvis", message)
+            return message
+        except Exception as e:
+            logger.error(f"LLM reasoning error: {e}")
+            return self._get_response("fallback")
+
+    # ------------------- DATA RETRIEVAL -------------------
     def get_active_reminders(self) -> List[Dict[str, Any]]:
-        """
-        Get all active reminders.
-        
-        Returns:
-            List of active reminders
-        """
-        reminders = self.memory.get_context('reminders', [])
-        return [r for r in reminders if r.get('status') == 'active']
-    
+        return [r for r in self.memory.get_context("reminders", []) if r.get("status") == "active"]
+
     def get_active_alarms(self) -> List[Dict[str, Any]]:
-        """
-        Get all active alarms.
-        
-        Returns:
-            List of active alarms
-        """
-        alarms = self.memory.get_context('alarms', [])
-        return [a for a in alarms if a.get('status') == 'active']
-    
+        return [a for a in self.memory.get_context("alarms", []) if a.get("status") == "active"]
+
     def get_notes(self) -> List[Dict[str, Any]]:
-        """
-        Get all notes.
-        
-        Returns:
-            List of notes
-        """
-        return self.memory.get_context('notes', [])
+        return self.memory.get_context("notes", [])
