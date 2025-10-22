@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Memory Manager Module for Jarvis AI Assistant
-Responsible for storing and retrieving user interactions, preferences, and context.
+Memory Manager Module for Jarvis AI Assistant (Improved)
+Manages persistent and contextual memory with short-term and long-term separation.
 """
 
 import os
@@ -16,88 +16,55 @@ logger = logging.getLogger("Jarvis.MemoryManager")
 
 class MemoryManager:
     """
-    Memory Manager class that handles storage and retrieval of user interactions,
-    preferences, and contextual information.
+    Memory Manager for Jarvis. Handles:
+    - Short-term/session context
+    - Long-term interactions
+    - Preferences
+    - Secure/extendible storage
     """
-    
+
     def __init__(self, data_dir: str = None):
-        """
-        Initialize the Memory Manager.
-        
-        Args:
-            data_dir: Directory to store memory data. Defaults to 'data' in the project root.
-        """
-        if data_dir is None:
-            # Default to 'data' directory in the project root
-            self.data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
-        else:
-            self.data_dir = data_dir
-            
-        # Ensure data directory exists
+        self.data_dir = data_dir or os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data'
+        )
         os.makedirs(self.data_dir, exist_ok=True)
-        
-        # File paths for different types of data
+
+        # File paths
         self.interactions_file = os.path.join(self.data_dir, 'interactions.json')
-        self.preferences_file = os.path.join(self.data_dir, 'preferences.json')
-        self.context_file = os.path.join(self.data_dir, 'context.json')
-        
-        # Initialize data structures
-        self.interactions = self._load_data(self.interactions_file, default=[])
-        self.preferences = self._load_data(self.preferences_file, default={})
-        self.context = self._load_data(self.context_file, default={})
-        
+        self.preferences_file  = os.path.join(self.data_dir, 'preferences.json')
+        self.context_file      = os.path.join(self.data_dir, 'context.json')
+
+        # Load structures
+        self.interactions = self._load_data(self.interactions_file, [])
+        self.preferences  = self._load_data(self.preferences_file, {})
+        self.context      = self._load_data(self.context_file, {})
+
+        # Session-specific short-term context (not persisted)
+        self.session_context = {}
+
         logger.info("Memory Manager initialized")
-    
+
     def _load_data(self, file_path: str, default: Any = None) -> Any:
-        """
-        Load data from a JSON file.
-        
-        Args:
-            file_path: Path to the JSON file
-            default: Default value if file doesn't exist or is invalid
-            
-        Returns:
-            Loaded data or default value
-        """
         try:
             if os.path.exists(file_path):
                 with open(file_path, 'r', encoding='utf-8') as f:
                     return json.load(f)
             return default
         except Exception as e:
-            logger.error(f"Error loading data from {file_path}: {str(e)}")
+            logger.error(f"Error loading {file_path}: {str(e)}")
             return default
-    
+
     def _save_data(self, file_path: str, data: Any) -> bool:
-        """
-        Save data to a JSON file.
-        
-        Args:
-            file_path: Path to the JSON file
-            data: Data to save
-            
-        Returns:
-            True if successful, False otherwise
-        """
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             return True
         except Exception as e:
-            logger.error(f"Error saving data to {file_path}: {str(e)}")
+            logger.error(f"Error saving {file_path}: {str(e)}")
             return False
-    
+
+    # === Interactions and Long-Term History ===
     def store_interaction(self, speaker: str, message: str) -> bool:
-        """
-        Store a user or Jarvis interaction.
-        
-        Args:
-            speaker: Who is speaking ('user' or 'jarvis')
-            message: The message content
-            
-        Returns:
-            True if successful, False otherwise
-        """
         try:
             interaction = {
                 'timestamp': datetime.now().isoformat(),
@@ -105,140 +72,90 @@ class MemoryManager:
                 'message': message
             }
             self.interactions.append(interaction)
-            
-            # Keep only the last 100 interactions to avoid excessive memory usage
-            if len(self.interactions) > 100:
-                self.interactions = self.interactions[-100:]
-                
+            if len(self.interactions) > 500:
+                self.interactions = self.interactions[-500:]
             return self._save_data(self.interactions_file, self.interactions)
         except Exception as e:
             logger.error(f"Error storing interaction: {str(e)}")
             return False
-    
+
     def get_recent_interactions(self, count: int = 10) -> List[Dict]:
-        """
-        Get the most recent interactions.
-        
-        Args:
-            count: Number of recent interactions to retrieve
-            
-        Returns:
-            List of recent interactions
-        """
-        return self.interactions[-count:] if self.interactions else []
-    
-    def store_preference(self, key: str, value: Any) -> bool:
-        """
-        Store a user preference.
-        
-        Args:
-            key: Preference key
-            value: Preference value
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            self.preferences[key] = value
-            return self._save_data(self.preferences_file, self.preferences)
-        except Exception as e:
-            logger.error(f"Error storing preference: {str(e)}")
-            return False
-    
-    def get_preference(self, key: str, default: Any = None) -> Any:
-        """
-        Get a user preference.
-        
-        Args:
-            key: Preference key
-            default: Default value if preference doesn't exist
-            
-        Returns:
-            Preference value or default
-        """
-        return self.preferences.get(key, default)
-    
-    def store_context(self, key: str, value: Any) -> bool:
-        """
-        Store contextual information.
-        
-        Args:
-            key: Context key
-            value: Context value
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            self.context[key] = {
-                'value': value,
-                'timestamp': datetime.now().isoformat()
-            }
-            return self._save_data(self.context_file, self.context)
-        except Exception as e:
-            logger.error(f"Error storing context: {str(e)}")
-            return False
-    
-    def get_context(self, key: str, default: Any = None) -> Any:
-        """
-        Get contextual information.
-        
-        Args:
-            key: Context key
-            default: Default value if context doesn't exist
-            
-        Returns:
-            Context value or default
-        """
-        context_data = self.context.get(key, {})
-        return context_data.get('value', default) if context_data else default
-    
+        return self.interactions[-count:]
+
     def clear_interactions(self) -> bool:
-        """
-        Clear all stored interactions.
-        
-        Returns:
-            True if successful, False otherwise
-        """
         try:
             self.interactions = []
             return self._save_data(self.interactions_file, self.interactions)
         except Exception as e:
             logger.error(f"Error clearing interactions: {str(e)}")
             return False
-    
-    def clear_context(self) -> bool:
-        """
-        Clear all contextual information.
-        
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            self.context = {}
-            return self._save_data(self.context_file, self.context)
-        except Exception as e:
-            logger.error(f"Error clearing context: {str(e)}")
-            return False
-    
+
     def get_conversation_history(self, as_text: bool = False) -> Any:
-        """
-        Get the full conversation history.
-        
-        Args:
-            as_text: If True, return as formatted text, otherwise as a list of dictionaries
-            
-        Returns:
-            Conversation history
-        """
         if not as_text:
             return self.interactions
-        
-        # Format as text
         history = []
         for interaction in self.interactions:
             speaker = "You" if interaction['speaker'] == 'user' else "Jarvis"
             timestamp = datetime.fromisoformat(interaction['timestamp']).strftime("%H:%M:%S")
             history.append(f"[{timestamp}] {speaker}: {interaction['message']}")
-        
         return "\n".join(history)
+
+    # === Preferences (Persistent) ===
+    def store_preference(self, key: str, value: Any) -> bool:
+        try:
+            self.preferences[key] = value
+            return self._save_data(self.preferences_file, self.preferences)
+        except Exception as e:
+            logger.error(f"Error storing preference: {str(e)}")
+            return False
+
+    def get_preference(self, key: str, default: Any = None) -> Any:
+        return self.preferences.get(key, default)
+
+    # === Context Management ===
+    def store_context(self, key: str, value: Any, persist: bool = False) -> bool:
+        """
+        Store context.
+        If persist=True, saves to disk; otherwise, temporary for session only.
+        """
+        try:
+            if persist:
+                self.context[key] = {'value': value, 'timestamp': datetime.now().isoformat()}
+                return self._save_data(self.context_file, self.context)
+            else:
+                self.session_context[key] = {'value': value, 'timestamp': datetime.now().isoformat()}
+                return True
+        except Exception as e:
+            logger.error(f"Error storing context: {str(e)}")
+            return False
+
+    def get_context(self, key: str, default: Any = None, use_session: bool = True) -> Any:
+        """
+        Get context.
+        If use_session=True, checks temp session context first, then persistent.
+        """
+        context_data = self.session_context.get(key) if use_session else None
+        if not context_data:
+            context_data = self.context.get(key)
+        return context_data.get('value', default) if context_data else default
+
+    def clear_context(self, persistent: bool = False) -> bool:
+        try:
+            if persistent:
+                self.context = {}
+                return self._save_data(self.context_file, self.context)
+            else:
+                self.session_context = {}
+                return True
+        except Exception as e:
+            logger.error(f"Error clearing context: {str(e)}")
+            return False
+
+    # === Security Placeholder ===
+    def encrypt_data(self, text: str) -> str:
+        # Stub: Future implementation for encrypted local memory
+        return text
+
+    def decrypt_data(self, text: str) -> str:
+        # Stub: Future implementation for encrypted local memory
+        return text
