@@ -1,24 +1,54 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ApiService from "../services/api";
+import "./ChatPanel.css";
 
 const ChatPanel = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(scrollToBottom, [messages]);
 
   // Handle text send
   const handleSend = async () => {
-    if (!input.trim()) return;
-    const userMsg = { sender: "user", text: input };
+    if (!input.trim() || loading) return;
+    
+    const userMsg = { sender: "user", text: input, timestamp: new Date().toLocaleTimeString() };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    setLoading(true);
+
     try {
       const response = await ApiService.sendMessage(input);
-      if (response && response.reply) {
-        setMessages((prev) => [...prev, { sender: "jarvis", text: response.reply }]);
+      if (response && (response.reply || response.response)) {
+        setMessages((prev) => [
+          ...prev,
+          { 
+            sender: "jarvis", 
+            text: response.reply || response.response, 
+            timestamp: new Date().toLocaleTimeString() 
+          }
+        ]);
       }
     } catch (err) {
       console.error("Chat send error:", err);
+      setMessages((prev) => [
+        ...prev,
+        { 
+          sender: "jarvis", 
+          text: "I'm having trouble connecting. Please check the backend.", 
+          timestamp: new Date().toLocaleTimeString(),
+          isError: true
+        }
+      ]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -28,57 +58,117 @@ const ChatPanel = () => {
       if (!listening) {
         setListening(true);
         await ApiService.startVoiceRecognition();
+        setMessages((prev) => [
+          ...prev,
+          { 
+            sender: "system", 
+            text: "🎤 Listening...", 
+            timestamp: new Date().toLocaleTimeString() 
+          }
+        ]);
       } else {
         await ApiService.stopVoiceRecognition();
         setListening(false);
       }
     } catch (error) {
       console.error("Voice control failed:", error);
+      setListening(false);
     }
   };
 
-  // Handle backend responses from recognition
+  // Handle backend responses
   useEffect(() => {
-    ApiService.addEventListener("chat_response", (data) => {
-      setMessages((prev) => [...prev, { sender: "jarvis", text: data.reply || JSON.stringify(data) }]);
-    });
-    return () => ApiService.disconnectSocket();
+    const handleResponse = (data) => {
+      setMessages((prev) => [
+        ...prev,
+        { 
+          sender: "jarvis", 
+          text: data.reply || data.text || JSON.stringify(data), 
+          timestamp: new Date().toLocaleTimeString() 
+        }
+      ]);
+      setListening(false);
+    };
+
+    ApiService.addEventListener("chat_response", handleResponse);
+    ApiService.addEventListener("jarvis_response", handleResponse);
+
+    return () => {
+      ApiService.removeEventListener("chat_response", handleResponse);
+      ApiService.removeEventListener("jarvis_response", handleResponse);
+    };
   }, []);
 
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
-    <div style={styles.container}>
-      <div style={styles.chatBox}>
-        {messages.map((m, i) => (
-          <div key={i} style={{ ...styles.msg, alignSelf: m.sender === "user" ? "flex-end" : "flex-start" }}>
-            <span>{m.text}</span>
-          </div>
-        ))}
+    <div className="chat-panel">
+      <div className="chat-header">
+        <h3>💬 Jarvis AI Assistant</h3>
+        <span className="chat-subtitle">Chat or speak with me</span>
       </div>
 
-      <div style={styles.controls}>
+      <div className="chat-messages">
+        {messages.length === 0 && (
+          <div className="welcome-message">
+            <span className="wave">👋</span>
+            <p>Hello! I'm Jarvis. How can I help you today?</p>
+          </div>
+        )}
+        {messages.map((m, i) => (
+          <div key={i} className={`message message-${m.sender} ${m.isError ? 'message-error' : ''}`}>
+            <div className="message-content">
+              <span className="message-text">{m.text}</span>
+              {m.timestamp && <span className="message-time">{m.timestamp}</span>}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="message message-jarvis">
+            <div className="message-content">
+              <div className="typing-indicator">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <div className="chat-input-container">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Type something..."
-          style={styles.input}
+          onKeyPress={handleKeyPress}
+          placeholder="Type your message..."
+          className="chat-input"
+          disabled={loading}
         />
-        <button onClick={handleSend} style={styles.button}>Send</button>
-        <button onClick={toggleMic} style={{ ...styles.button, background: listening ? "#d33" : "#0d6efd" }}>
-          {listening ? "Stop 🎙️" : "Speak 🎤"}
+        <button 
+          onClick={handleSend} 
+          className="send-button"
+          disabled={loading || !input.trim()}
+        >
+          📤
+        </button>
+        <button 
+          onClick={toggleMic} 
+          className={`mic-button ${listening ? 'listening' : ''}`}
+        >
+          {listening ? "🔴" : "🎤"}
         </button>
       </div>
     </div>
   );
 };
 
-const styles = {
-  container: { display: "flex", flexDirection: "column", height: "100%" },
-  chatBox: { flex: 1, overflowY: "auto", padding: "1rem", background: "#111", color: "#fff" },
-  msg: { margin: "8px 0", padding: "10px", borderRadius: "8px", background: "#1f1f1f", maxWidth: "70%" },
-  controls: { display: "flex", padding: "10px", background: "#222" },
-  input: { flex: 1, marginRight: "8px", padding: "8px" },
-  button: { padding: "8px 16px", cursor: "pointer", border: "none", borderRadius: "4px", color: "#fff" },
-};
-
 export default ChatPanel;
+
