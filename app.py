@@ -51,21 +51,14 @@ def on_disconnect():
 
 @socketio.on('user_message')
 def handle_user_message(data):
-    """
-    Handle incoming chat messages from frontend
-    
-    Expected data format:
-    {
-        "text": "user message here"
-    }
-    """
+    """Handle incoming chat messages from frontend"""
     try:
         user_text = data.get('text', '')
         print(f"[Chat] Received: {user_text}")
         
         if not user_text.strip():
             emit('jarvis_response', {
-                'reply': 'I didn\'t catch that. Could you say something?',
+                'reply': 'I did not catch that. Could you say something?',
                 'type': 'error'
             })
             return
@@ -93,10 +86,7 @@ def handle_user_message(data):
 
 @socketio.on('start_voice_recognition')
 def handle_start_voice():
-    """
-    Start voice recognition
-    Frontend calls this when user clicks the mic button
-    """
+    """Start voice recognition"""
     try:
         print("[Voice] Starting voice recognition...")
         
@@ -105,12 +95,12 @@ def handle_start_voice():
         
         if result.get('success'):
             emit('jarvis_response', {
-                'reply': '🎤 Listening... Speak now.',
+                'reply': 'Listening... Speak now.',
                 'type': 'system'
             })
         else:
             emit('jarvis_response', {
-                'reply': '❌ Voice recognition unavailable.',
+                'reply': 'Voice recognition unavailable.',
                 'type': 'error'
             })
             
@@ -123,10 +113,7 @@ def handle_start_voice():
 
 @socketio.on('stop_voice_recognition')
 def handle_stop_voice():
-    """
-    Stop voice recognition
-    Frontend calls this when user stops the mic
-    """
+    """Stop voice recognition"""
     try:
         print("[Voice] Stopping voice recognition...")
         
@@ -149,7 +136,7 @@ def handle_stop_voice():
             })
         else:
             emit('jarvis_response', {
-                'reply': '⏹️ Voice recognition stopped.',
+                'reply': 'Voice recognition stopped.',
                 'type': 'system'
             })
             
