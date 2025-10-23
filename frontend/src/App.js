@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import StatusBar from "./components/StatusBar/StatusBar";
 import Sidebar from "./components/Navigation/Sidebar";
 import AIOrb from "./components/AIOrb/AIOrb";
-import ChatPanel from "./components/ChatPanel"; // ✅ FIXED PATH
+import ChatPanel from "./components/ChatPanel";
 import ApiService from "./services/api";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import "./App.css";
@@ -16,7 +16,6 @@ function App() {
     const init = async () => {
       const result = await ApiService.initializeSocket();
       if (!isMounted) return;
-
       if (result.success) {
         setConnectionStatus("connected");
       } else {
@@ -84,4 +83,5 @@ function App() {
 }
 
 export default App;
+
 
