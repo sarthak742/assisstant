@@ -2,9 +2,10 @@ import React, { useEffect, useState } from "react";
 import StatusBar from "./components/StatusBar/StatusBar";
 import Sidebar from "./components/Navigation/Sidebar";
 import AIOrb from "./components/AIOrb/AIOrb";
-import ChatPanel from "./components/ChatPanel";
+import ChatPanel from "./components/ChatPanel"; // ✅ FIXED PATH
 import ApiService from "./services/api";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import "./App.css";
 
 function App() {
   const [connectionStatus, setConnectionStatus] = useState("connecting");
@@ -73,9 +74,8 @@ function App() {
       <div className="app-container">
         <StatusBar connectionStatus={connectionStatus} />
         <Sidebar />
-        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+        <div className="main-content">
           <AIOrb />
-          {/* Hybrid chat + voice interaction panel */}
           <ChatPanel />
         </div>
       </div>
@@ -84,3 +84,4 @@ function App() {
 }
 
 export default App;
+
