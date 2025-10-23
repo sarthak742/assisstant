@@ -7,6 +7,7 @@ const ChatPanel = () => {
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [connected, setConnected] = useState(false);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -15,24 +16,42 @@ const ChatPanel = () => {
 
   useEffect(scrollToBottom, [messages]);
 
-  // Handle text send
+  useEffect(() => {
+    // Check connection status
+    const checkConnection = () => {
+      setConnected(true);
+    };
+    
+    ApiService.addEventListener("connect", checkConnection);
+    
+    return () => {
+      ApiService.removeEventListener("connect", checkConnection);
+    };
+  }, []);
+
   const handleSend = async () => {
     if (!input.trim() || loading) return;
     
-    const userMsg = { sender: "user", text: input, timestamp: new Date().toLocaleTimeString() };
+    const userMsg = { 
+      sender: "user", 
+      text: input, 
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setLoading(true);
 
     try {
       const response = await ApiService.sendMessage(input);
-      if (response && (response.reply || response.response)) {
+      
+      if (response && (response.reply || response.response || response.message)) {
         setMessages((prev) => [
           ...prev,
           { 
             sender: "jarvis", 
-            text: response.reply || response.response, 
-            timestamp: new Date().toLocaleTimeString() 
+            text: response.reply || response.response || response.message, 
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           }
         ]);
       }
@@ -42,8 +61,8 @@ const ChatPanel = () => {
         ...prev,
         { 
           sender: "jarvis", 
-          text: "I'm having trouble connecting. Please check the backend.", 
-          timestamp: new Date().toLocaleTimeString(),
+          text: "⚠️ Connection error. Please check if the backend is running.", 
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           isError: true
         }
       ]);
@@ -52,7 +71,6 @@ const ChatPanel = () => {
     }
   };
 
-  // Handle voice start/stop
   const toggleMic = async () => {
     try {
       if (!listening) {
@@ -62,29 +80,45 @@ const ChatPanel = () => {
           ...prev,
           { 
             sender: "system", 
-            text: "🎤 Listening...", 
-            timestamp: new Date().toLocaleTimeString() 
+            text: "🎤 Listening for your voice...", 
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           }
         ]);
       } else {
         await ApiService.stopVoiceRecognition();
         setListening(false);
+        setMessages((prev) => [
+          ...prev,
+          { 
+            sender: "system", 
+            text: "⏹️ Voice recognition stopped.", 
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }
+        ]);
       }
     } catch (error) {
       console.error("Voice control failed:", error);
       setListening(false);
+      setMessages((prev) => [
+        ...prev,
+        { 
+          sender: "system", 
+          text: "❌ Voice recognition unavailable. Check backend.", 
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isError: true
+        }
+      ]);
     }
   };
 
-  // Handle backend responses
   useEffect(() => {
     const handleResponse = (data) => {
       setMessages((prev) => [
         ...prev,
         { 
           sender: "jarvis", 
-          text: data.reply || data.text || JSON.stringify(data), 
-          timestamp: new Date().toLocaleTimeString() 
+          text: data.reply || data.text || data.message || JSON.stringify(data), 
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
       setListening(false);
@@ -109,17 +143,33 @@ const ChatPanel = () => {
   return (
     <div className="chat-panel">
       <div className="chat-header">
-        <h3>💬 Jarvis AI Assistant</h3>
-        <span className="chat-subtitle">Chat or speak with me</span>
+        <div className="chat-header-content">
+          <h3>💬 Jarvis AI Assistant</h3>
+          <span className="chat-subtitle">Hybrid Chat & Voice Interface</span>
+        </div>
+        <div className={`connection-indicator ${connected ? 'connected' : 'disconnected'}`}>
+          <span className="indicator-dot"></span>
+          {connected ? 'Connected' : 'Disconnected'}
+        </div>
       </div>
 
       <div className="chat-messages">
         {messages.length === 0 && (
           <div className="welcome-message">
-            <span className="wave">👋</span>
-            <p>Hello! I'm Jarvis. How can I help you today?</p>
+            <div className="wave">👋</div>
+            <p className="welcome-title">Hello! I'm Jarvis.</p>
+            <p className="welcome-subtitle">How can I assist you today?</p>
+            <div className="quick-actions">
+              <button className="quick-action" onClick={() => setInput("Tell me a joke")}>
+                😄 Tell me a joke
+              </button>
+              <button className="quick-action" onClick={() => setInput("What can you do?")}>
+                🤖 What can you do?
+              </button>
+            </div>
           </div>
         )}
+        
         {messages.map((m, i) => (
           <div key={i} className={`message message-${m.sender} ${m.isError ? 'message-error' : ''}`}>
             <div className="message-content">
@@ -128,6 +178,7 @@ const ChatPanel = () => {
             </div>
           </div>
         ))}
+        
         {loading && (
           <div className="message message-jarvis">
             <div className="message-content">
@@ -139,6 +190,7 @@ const ChatPanel = () => {
             </div>
           </div>
         )}
+        
         <div ref={messagesEndRef} />
       </div>
 
@@ -148,7 +200,7 @@ const ChatPanel = () => {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder="Type your message..."
+          placeholder="Type your message or use voice..."
           className="chat-input"
           disabled={loading}
         />
@@ -156,12 +208,14 @@ const ChatPanel = () => {
           onClick={handleSend} 
           className="send-button"
           disabled={loading || !input.trim()}
+          title="Send message"
         >
-          📤
+          {loading ? "⏳" : "📤"}
         </button>
         <button 
           onClick={toggleMic} 
           className={`mic-button ${listening ? 'listening' : ''}`}
+          title={listening ? "Stop listening" : "Start voice input"}
         >
           {listening ? "🔴" : "🎤"}
         </button>
@@ -171,4 +225,5 @@ const ChatPanel = () => {
 };
 
 export default ChatPanel;
+
 
