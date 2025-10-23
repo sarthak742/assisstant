@@ -23,10 +23,10 @@ app.config['SECRET_KEY'] = os.urandom(24)
 # Initialize SocketIO with CORS support
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-# Initialize modules
+# Initialize modules in correct order (memory first, then reasoner)
 memory = MemoryManager()
 voice = VoiceModule()
-reasoner = ReasoningEngine()
+reasoner = ReasoningEngine(memory)  # ✅ FIXED: Pass memory_manager
 task_engine = HybridTaskManager()
 
 print("Jarvis backend starting on port 5000...")
@@ -66,9 +66,6 @@ def handle_user_message(data):
         # Process with reasoning engine
         response = reasoner.process(user_text)
         
-        # Store in memory
-        memory.store_interaction(user_text, response)
-        
         # Send response back
         emit('jarvis_response', {
             'reply': response,
@@ -93,7 +90,7 @@ def handle_start_voice():
         # Start listening
         result = voice.start_listening()
         
-        if result.get('success'):
+        if result and result.get('success'):
             emit('jarvis_response', {
                 'reply': 'Listening... Speak now.',
                 'type': 'system'
@@ -120,13 +117,12 @@ def handle_stop_voice():
         # Stop listening and get transcription
         result = voice.stop_listening()
         
-        if result.get('success') and result.get('text'):
+        if result and result.get('success') and result.get('text'):
             transcribed_text = result.get('text')
             print(f"[Voice] Heard: {transcribed_text}")
             
             # Process the transcribed text
             response = reasoner.process(transcribed_text)
-            memory.store_interaction(transcribed_text, response)
             
             # Send back the transcription and response
             emit('jarvis_response', {
