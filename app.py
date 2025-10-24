@@ -197,6 +197,36 @@ def handle_task_request(data):
             'status': 'failed'
         })
 
+from flask import request, jsonify
+import openai
+from dotenv import load_dotenv
+
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+@app.route('/ai/chat', methods=['POST'])
+def ai_chat():
+    """Endpoint for REST chat-based communication"""
+    try:
+        data = request.get_json()
+        message = data.get('message', '')
+        if not message.strip():
+            return jsonify({'error': 'No message provided.'}), 400
+
+        completion = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": message}]
+        )
+
+        reply = completion["choices"][0]["message"]["content"].strip()
+        print(f"[OpenAI /ai/chat Response] {reply}")
+        return jsonify({'reply': reply}), 200
+
+    except Exception as e:
+        print(f"[OpenAI Error /ai/chat] {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 # ============================================
 # RUN SERVER
 # ============================================
