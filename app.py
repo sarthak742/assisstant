@@ -17,6 +17,26 @@ from modules.memory_manager import MemoryManager
 from modules.hybrid_task_manager import HybridTaskManager
 import logging
 logging.basicConfig(level=logging.DEBUG)
+class SimpleAIChat:
+    def generate_response(self, command: str) -> str:
+        import openai
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+
+        try:
+            completion = openai.ChatCompletion.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": command}]
+            )
+            response = completion["choices"][0]["message"]["content"].strip()
+            print(f"[OpenAI Response] {response}")
+            return response
+        except Exception as e:
+            print(f"[OpenAI Error] {e}")
+            return "Sorry, I couldn't reach OpenAI right now."
+
 
 # Initialize Flask app
 app = Flask(__name__)
