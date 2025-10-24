@@ -2,19 +2,18 @@
 # -*- coding: utf-8 -*-
 
 """
-Voice Module for Jarvis AI Assistant (Final v2.1)
--------------------------------------------------
+Voice Module for Jarvis AI Assistant (Final v2.1 Stable)
+--------------------------------------------------------
 Features:
 - Continuous listening with wake-word trigger (“Hey Jarvis”)
 - Thread-safe, COM-safe TTS with retry logic
-- Adaptive ambient noise adjustment for dynamic environments
-- Optional callback + ReasoningEngine integration
+- Adaptive ambient noise calibration for changing environments
+- Optional callback + Reasoning Engine integration
 """
 
 import os
 import logging
 import threading
-import queue
 import time
 from typing import Callable, Optional, Dict, Any
 
@@ -46,7 +45,7 @@ class VoiceModule:
         self.voice_settings = {'rate': 160, 'volume': 1.0, 'voice': None}
         if VOICE_DEPENDENCIES_AVAILABLE:
             self._initialize_voice_components()
-        logger.info("Voice Module initialized and ready.")
+        logger.info("Voice Module initialized successfully.")
 
     # ---------------------------------------------------------
     # Initialization
@@ -58,7 +57,6 @@ class VoiceModule:
             self.recognizer.dynamic_energy_threshold = True
             self.engine = pyttsx3.init()
 
-            # Voice setup
             voices = self.engine.getProperty("voices")
             if voices:
                 self.engine.setProperty("voice", voices[0].id)
@@ -67,61 +65,61 @@ class VoiceModule:
             self.engine.setProperty("rate", self.voice_settings["rate"])
             self.engine.setProperty("volume", self.voice_settings["volume"])
         except Exception as e:
-            logger.error(f"Voice init failed: {e}")
-            self.engine = None
+            logger.error(f"Speech engine initialization failed: {e}")
             self.recognizer = None
+            self.engine = None
 
     # ---------------------------------------------------------
-    # Adaptive Ambient Noise Calibration
+    # Adaptive Noise Calibration
     # ---------------------------------------------------------
     def calibrate_noise(self, duration: float = 1.5):
-        """Adjusts recognition threshold dynamically."""
+        """Automatically calibrates background noise to improve recognition accuracy."""
         if not self.recognizer:
             return
         try:
             with sr.Microphone() as source:
                 logger.info("Calibrating ambient noise...")
                 self.recognizer.adjust_for_ambient_noise(source, duration=duration)
-                logger.info(f"Adjusted threshold: {self.recognizer.energy_threshold}")
+                logger.info(f"Energy threshold calibrated to: {self.recognizer.energy_threshold}")
         except Exception as e:
             logger.warning(f"Noise calibration failed: {e}")
 
     # ---------------------------------------------------------
-    # Listening Loop
+    # Listening Loop (Wake Word + Command)
     # ---------------------------------------------------------
     def start_listening(self, wake_word: str = None, callback: Callable = None):
-        """Begin voice recognition loop."""
+        """Starts background listening loop."""
         if not VOICE_DEPENDENCIES_AVAILABLE or not self.recognizer or not self.engine:
             logger.error("Voice dependencies unavailable.")
             return False
 
         if wake_word:
             self.wake_word = wake_word.lower()
+
         self.callback = callback
         self.listening = True
-
         self.listen_thread = threading.Thread(target=self._listen_loop, daemon=True)
         self.listen_thread.start()
 
-        self.speak("Voice interface active.")
+        self.speak("Jarvis voice interface active.")
         logger.info(f"Listening for wake word: '{self.wake_word}'")
         return True
 
     def stop_listening(self):
-        """Stops active listening loop."""
+        """Stops active listening thread."""
         self.listening = False
         if self.listen_thread and self.listen_thread.is_alive():
             self.listen_thread.join(timeout=1)
-        logger.info("Voice loop stopped.")
+        logger.info("Voice listening stopped.")
 
     def _listen_loop(self):
-        """Broad continuous loop for wake word detection."""
+        """Continuously listens for wake word and handles commands."""
         try:
             with sr.Microphone() as source:
                 self.calibrate_noise(duration=1.0)
                 while self.listening:
                     try:
-                        logger.debug("Listening for wake word…")
+                        logger.debug("Listening for wake word...")
                         audio = self.recognizer.listen(source, timeout=None, phrase_time_limit=4)
                         text = ""
                         try:
@@ -132,16 +130,16 @@ class VoiceModule:
                         if self.wake_word in text:
                             self._play_ack_sound()
                             self.speak("Yes, I'm listening.")
-                            logger.info("Wake word detected — awaiting next command.")
+                            logger.info("Wake word detected — awaiting user command.")
                             self._capture_command(source)
                     except Exception as e:
-                        logger.error(f"Loop error: {e}")
+                        logger.error(f"Listening loop error: {e}")
                         time.sleep(0.5)
         except Exception as e:
-            logger.error(f"Voice listen loop failed: {e}")
+            logger.error(f"Failed to start microphone loop: {e}")
 
     def _capture_command(self, source):
-        """Capture and process user’s command speech."""
+        """Captures and processes user command after wake word."""
         try:
             command_audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
             command = self.recognizer.recognize_google(command_audio)
@@ -158,12 +156,12 @@ class VoiceModule:
             logger.error(f"Command processing failed: {e}")
 
     # ---------------------------------------------------------
-    # Wake-Word Continuous Mode
+    # Wake Word Auto-Listener
     # ---------------------------------------------------------
     def start_wake_word_listener(self):
-        """Non-blocking continuous 'Hey Jarvis' detector."""
+        """Start autonomous 'Hey Jarvis' background loop."""
         if not VOICE_DEPENDENCIES_AVAILABLE or not self.recognizer:
-            logger.error("Wake listener not available.")
+            logger.error("Wake word mode unavailable.")
             return False
 
         threading.Thread(target=self._listen_loop, daemon=True).start()
@@ -171,19 +169,19 @@ class VoiceModule:
         return True
 
     # ---------------------------------------------------------
-    # Playback Helper
+    # Acknowledgment Sound
     # ---------------------------------------------------------
     def _play_ack_sound(self):
         try:
-            logger.info("Wake word acknowledged.")
+            logger.info("Wake word acknowledgment detected.")
         except Exception as e:
-            logger.warning(f"Ack sound error: {e}")
+            logger.warning(f"Acknowledgment error: {e}")
 
     # ---------------------------------------------------------
-    # TTS (Thread-Safe)
+    # Text-to-Speech (Thread-Safe)
     # ---------------------------------------------------------
     def speak(self, text: str):
-        """Safe pyttsx3 speech that never blocks main loop."""
+        """Thread-safe TTS that prevents runtime conflicts."""
         if not VOICE_DEPENDENCIES_AVAILABLE or not self.engine:
             print(f"Jarvis: {text}")
             return
@@ -195,16 +193,16 @@ class VoiceModule:
                     self.engine.say(text)
                     self.engine.runAndWait()
                 except RuntimeError:
-                    logger.warning("TTS busy, retrying in backup thread.")
+                    logger.warning("TTS busy; retrying...")
                     threading.Thread(target=self._retry_speak, args=(text,), daemon=True).start()
                 except Exception as e:
-                    logger.error(f"TTS failure: {e}")
+                    logger.error(f"TTS error: {e}")
                     print(f"Jarvis: {text}")
 
         threading.Thread(target=_speak_thread, daemon=True).start()
 
     def _retry_speak(self, text: str):
-        """Backup retry if the engine throws a run-time error."""
+        """Backup retry in case of concurrent TTS conflicts."""
         try:
             time.sleep(0.3)
             with self.engine_lock:
@@ -212,31 +210,27 @@ class VoiceModule:
                 self.engine.say(text)
                 self.engine.runAndWait()
         except Exception as e:
-            logger.error(f"Retry TTS failed: {e}")
+            logger.error(f"TTS retry failed: {e}")
             print(f"Jarvis (retry): {text}")
 
     # ---------------------------------------------------------
-    # Customization Methods
+    # Customization Settings
     # ---------------------------------------------------------
     def change_voice(self, gender: Optional[str] = None):
-        """Change to a male or female voice if available."""
+        """Switch between male or female voices."""
         if not self.engine:
             return False
         try:
             voices = self.engine.getProperty("voices")
-            target = None
             for v in voices:
                 if gender and gender.lower() in v.name.lower():
-                    target = v.id
-                    break
-            if target:
-                self.engine.setProperty("voice", target)
-                self.voice_settings["voice"] = target
-                return True
+                    self.engine.setProperty("voice", v.id)
+                    self.voice_settings["voice"] = v.id
+                    return True
             logger.warning("Requested voice not found.")
             return False
         except Exception as e:
-            logger.error(f"Voice change error: {e}")
+            logger.error(f"Voice change failed: {e}")
             return False
 
     def adjust_speech_rate(self, rate: int):
@@ -245,7 +239,7 @@ class VoiceModule:
             self.voice_settings["rate"] = rate
             return True
         except Exception as e:
-            logger.error(f"Rate adjustment error: {e}")
+            logger.error(f"Rate adjustment failed: {e}")
             return False
 
     def adjust_volume(self, volume: float):
@@ -255,10 +249,9 @@ class VoiceModule:
             self.voice_settings["volume"] = vol
             return True
         except Exception as e:
-            logger.error(f"Volume adjustment error: {e}")
+            logger.error(f"Volume adjustment failed: {e}")
             return False
 
     def get_voice_settings(self) -> Dict[str, Any]:
+        """Return current TTS configuration."""
         return self.voice_settings.copy()
-
-
