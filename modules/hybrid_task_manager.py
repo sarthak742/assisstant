@@ -197,4 +197,3 @@ class HybridTaskManager:
             self.voice.speak(summary)
         return summary
 
- history else "No tasks logged yet."
