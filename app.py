@@ -15,6 +15,8 @@ from modules.reasoning_engine import ReasoningEngine
 from modules.voice_module import VoiceModule
 from modules.memory_manager import MemoryManager
 from modules.hybrid_task_manager import HybridTaskManager
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
 # Initialize Flask app
 app = Flask(__name__)
