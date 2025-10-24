@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Voice Module for Jarvis AI Assistant (Integrated & Continuous)
-Handles speech recognition (STT), text-to-speech (TTS), and real-time conversation looping.
+Voice Module for Jarvis AI Assistant (Thread-Safe & COM-Safe)
+Handles speech recognition (STT), text-to-speech (TTS), and continuous listening without event loop conflicts.
 """
 
 import os
@@ -16,22 +16,25 @@ from typing import Callable, Optional, Dict, Any
 try:
     import speech_recognition as sr
     import pyttsx3
+    import pythoncom
     from pydub import AudioSegment
     from pydub.playback import play
     VOICE_DEPENDENCIES_AVAILABLE = True
 except ImportError:
     VOICE_DEPENDENCIES_AVAILABLE = False
-    logging.warning("Voice dependencies missing. Install: pip install speech_recognition pyttsx3 pydub")
+    logging.warning("Voice dependencies missing. Install: pip install speech_recognition pyttsx3 pydub pywin32")
 
 logger = logging.getLogger("Jarvis.VoiceModule")
 
+
 class VoiceModule:
-    """Handles voice I/O for Jarvis (Speech Recognition + TTS + Continuous Learning Mode)."""
+    """Handles Voice I/O for Jarvis (Speech Recognition + TTS + Continuous Learning Mode)."""
 
     def __init__(self, reasoning_engine: Optional[Any] = None):
         self.recognizer = None
         self.engine = None
-        self.reasoning_engine = reasoning_engine  # Link to ReasoningEngine
+        self.engine_lock = threading.Lock()  # Prevents simultaneous TTS loops
+        self.reasoning_engine = reasoning_engine
         self.wake_word = "hey jarvis"
         self.callback = None
         self.listening = False
@@ -83,6 +86,7 @@ class VoiceModule:
         return True
 
     def stop_listening(self):
+        """Stops any background listening loop."""
         self.listening = False
         if self.listen_thread and self.listen_thread.is_alive():
             self.listen_thread.join(timeout=1.0)
@@ -140,17 +144,29 @@ class VoiceModule:
             logger.error(f"Acknowledgment error: {e}")
 
     def speak(self, text: str):
-        """Convert Jarvis’s text response to speech."""
+        """Thread-safe TTS to prevent 'run loop already started' errors."""
         if not VOICE_DEPENDENCIES_AVAILABLE or not self.engine:
             logger.warning("TTS engine unavailable. Falling back to text output.")
             print(f"Jarvis: {text}")
             return
-        try:
-            logger.info(f"Jarvis speaking: {text}")
-            self.engine.say(text)
-            self.engine.runAndWait()
-        except Exception as e:
-            logger.error(f"TTS Error: {e}")
+
+        def _speak_threadsafe():
+            try:
+                with self.engine_lock:
+                    pythoncom.CoInitialize()
+                    logger.info(f"Jarvis speaking: {text}")
+                    self.engine.stop()
+                    self.engine.say(text)
+                    self.engine.runAndWait()
+                    pythoncom.CoUninitialize()
+            except Exception as e:
+                logger.error(f"TTS Error: {e}")
+                print(f"Jarvis: {text}")  # fallback audible text
+            finally:
+                pass
+
+        # Always run TTS in its own thread to avoid async conflicts
+        threading.Thread(target=_speak_threadsafe, daemon=True).start()
 
     # ------------------- Customization -------------------
     def change_voice(self, voice_id=None, gender=None):
@@ -196,3 +212,4 @@ class VoiceModule:
     # ------------------- Status -------------------
     def get_voice_settings(self) -> Dict[str, Any]:
         return self.voice_settings.copy()
+
