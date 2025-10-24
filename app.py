@@ -66,7 +66,28 @@ def handle_user_message(data):
             return
         
         # Process with reasoning engine
-        response = reasoner.process(user_text)
+        # Process with reasoning engine
+response = reasoner.process(user_text)
+
+# If reasoning engine doesn't produce a valid response, use OpenAI
+if not response or response.strip() in ["I'm still learning about that.", ""]:
+    import openai
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+
+    try:
+        completion = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": user_text}]
+        )
+        response = completion["choices"][0]["message"]["content"].strip()
+        print(f"[OpenAI Response] {response}")
+    except Exception as e:
+        print(f"[OpenAI Error] {e}")
+        response = "Sorry, I couldn't reach OpenAI right now."
+
         
         # Send response back
         emit('jarvis_response', {
