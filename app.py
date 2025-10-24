@@ -22,6 +22,11 @@ from openai import OpenAI
 
 load_dotenv()
 logging.basicConfig(level=logging.DEBUG)
+logging.getLogger('werkzeug').setLevel(logging.WARNING)  # Silence Flask request logs
+
+# OpenAI key safety warning
+if not os.getenv("OPENAI_API_KEY"):
+    print("[WARNING] No OpenAI API key was found. Please check your .env file.")
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -57,6 +62,15 @@ reasoner = ReasoningEngine(memory)
 task_engine = HybridTaskManager()
 
 print("Jarvis backend starting on port 5000...")
+
+# ============================================
+# HEALTHCHECK ROOT ROUTE
+# ============================================
+
+@app.route('/')
+def home():
+    return "Jarvis Flask backend is running successfully!", 200
+
 
 # ============================================
 # SOCKET.IO EVENT HANDLERS
