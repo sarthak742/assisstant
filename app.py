@@ -11,6 +11,7 @@ import os
 import json
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
+from flask_cors import CORS
 from modules.reasoning_engine import ReasoningEngine
 from modules.voice_module import VoiceModule
 from modules.memory_manager import MemoryManager
@@ -41,6 +42,11 @@ class SimpleAIChat:
 # Initialize Flask app
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
+
+# Enable cross-origin access for the React/Electron frontend
+from flask_cors import CORS
+CORS(app, resources={r"/*": {"origins": "*"}})
+
 
 # Initialize SocketIO with CORS support
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
