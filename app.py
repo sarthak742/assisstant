@@ -73,56 +73,42 @@ def on_disconnect():
 
 @socketio.on('user_message')
 def handle_user_message(data):
-    """Handle incoming chat messages from frontend"""
     try:
         user_text = data.get('text', '')
         print(f"[Chat] Received: {user_text}")
-        
+
         if not user_text.strip():
-            emit('jarvis_response', {
-                'reply': 'I did not catch that. Could you say something?',
-                'type': 'error'
-            })
+            emit('jarvis_response', {'reply': 'I did not catch that. Could you say something?', 'type': 'error'})
             return
-        
-        # Process with reasoning engine
-        # Process with reasoning engine
-response = reasoner.process(user_text)
 
-# If reasoning engine doesn't produce a valid response, use OpenAI
-if not response or response.strip() in ["I'm still learning about that.", ""]:
-    import openai
-    import os
-    from dotenv import load_dotenv
-    load_dotenv()
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+        # First try ReasoningEngine
+        response = reasoner.process(user_text)
 
-    try:
-        completion = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": user_text}]
-        )
-        response = completion["choices"][0]["message"]["content"].strip()
-        print(f"[OpenAI Response] {response}")
-    except Exception as e:
-        print(f"[OpenAI Error] {e}")
-        response = "Sorry, I couldn't reach OpenAI right now."
+        # Then OpenAI fallback if response is empty or generic
+        if not response or response.strip() in ["I'm still learning about that.", "", "I don't have an answer for that yet."]:
+            import openai, os
+            from dotenv import load_dotenv
+            load_dotenv()
+            openai.api_key = os.getenv("OPENAI_API_KEY")
 
-        
-        # Send response back
-        emit('jarvis_response', {
-            'reply': response,
-            'type': 'text'
-        })
-        
+            try:
+                completion = openai.ChatCompletion.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": user_text}]
+                )
+                response = completion["choices"][0]["message"]["content"].strip()
+                print(f"[OpenAI Response] {response}")
+            except Exception as e:
+                print(f"[OpenAI Error] {e}")
+                response = "Sorry, I couldn't reach OpenAI right now."
+
+        # Finally, return a response to the UI
+        emit('jarvis_response', {'reply': response, 'type': 'text'})
         print(f"[Chat] Response sent: {response}")
-        
+
     except Exception as e:
         print(f"[Error] handle_user_message: {e}")
-        emit('jarvis_response', {
-            'reply': 'Sorry, I encountered an error processing your message.',
-            'type': 'error'
-        })
+        emit('jarvis_response', {'reply': 'Sorry, I encountered an error processing your message.', 'type': 'error'})
 
 @socketio.on('start_voice_recognition')
 def handle_start_voice():
