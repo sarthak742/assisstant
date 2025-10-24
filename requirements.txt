@@ -6,6 +6,9 @@ flask
 flask_socketio
 numpy
 pydub
+aiohttp
+cryptography
+sentence-transformers
 
 openai
 python-dotenv
