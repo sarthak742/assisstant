@@ -133,18 +133,35 @@ def handle_stop_voice():
     """Stop voice recognition"""
     try:
         print("[Voice] Stopping voice recognition...")
+        
+        # Stop listening and get transcription
         result = voice.stop_listening()
-
+        
         if result and result.get('success') and result.get('text'):
-            transcribed = result.get('text')
-            print(f"[Voice] Heard: {transcribed}")
-            response = reasoner.process(transcribed)
-            emit('jarvis_response', {'reply': response, 'type': 'voice', 'transcription': transcribed})
+            transcribed_text = result.get('text')
+            print(f"[Voice] Heard: {transcribed_text}")
+            
+            # Process the transcribed text
+            response = reasoner.process(transcribed_text)
+            
+            # Send back the transcription and response
+            emit('jarvis_response', {
+                'reply': response,
+                'type': 'voice',
+                'transcription': transcribed_text
+            })
         else:
-            emit('jarvis_response', {'reply': 'Voice recognition stopped.', 'type': 'system'})
+            emit('jarvis_response', {
+                'reply': 'Voice recognition stopped.',
+                'type': 'system'
+            })
+            
     except Exception as e:
         print(f"[Error] handle_stop_voice: {e}")
-        emit('jarvis_response', {'reply': f'Voice stop error: {str(e)}', 'type': 'error'})
+        emit('jarvis_response', {
+            'reply': f'Voice stop error: {str(e)}',
+            'type': 'error'
+        })
 
 
 @socketio.on('task_request')
