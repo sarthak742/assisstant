@@ -176,7 +176,7 @@ class HybridTaskManager:
             logger.error(f"Task execution error: {e}")
             return f"Execution failed: {e}"
 
-    # -------------------------------------------------
+        # -------------------------------------------------
     # Task recall utilities
     # -------------------------------------------------
     def get_task_history(self):
@@ -188,8 +188,13 @@ class HybridTaskManager:
     def summarize_last_tasks(self):
         """Provide spoken or textual summary of recent tasks."""
         history = self.get_task_history()
-        summary = "Recent tasks: " + ", ".join([i["message"] for i in history]) if history else "No tasks logged yet."
+        if history:
+            summary = "Recent tasks: " + ", ".join([i["message"] for i in history])
+        else:
+            summary = "No tasks logged yet."
+
         if self.voice:
             self.voice.speak(summary)
         return summary
+
  history else "No tasks logged yet."
