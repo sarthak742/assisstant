@@ -2,7 +2,7 @@ import io from 'socket.io-client';
 import axios from 'axios';
 
 // Configuration
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
 // Set WS_URL default to Flask-SocketIO port
 const WS_URL = process.env.REACT_APP_WS_URL || 'http://localhost:5000';
 
