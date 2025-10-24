@@ -3,89 +3,34 @@ import StatusBar from "./components/StatusBar/StatusBar";
 import Sidebar from "./components/Navigation/Sidebar";
 import AIOrb from "./components/AIOrb/AIOrb";
 import ChatPanel from "./components/ChatPanel";
-import ApiService from "./services/api";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import "./App.css";
-import { io } from "socket.io-client";
 
-// --------------------------------------------------
-// SOCKET CONNECTION SETUP (Jarvis Flask backend)
-// --------------------------------------------------
-const socket = io("http://localhost:5000");
+import {
+  sendMessageToJarvis,
+  startVoiceRecognition,
+  stopVoiceRecognition,
+  registerJarvisListener
+} from "./services/socketService";
 
-// Send user message to backend
-export function sendMessageToJarvis(userText) {
-  if (userText && userText.trim() !== "") {
-    socket.emit("user_message", { text: userText });
-  }
-}
-
-// Listen for backend responses
-socket.on("jarvis_response", (data) => {
-  console.log("Jarvis:", data.reply || data.text);
-
-  // Optional: link this to your chat UI
-  if (window.addMessageToChat)
-    window.addMessageToChat("Jarvis", data.reply || data.text);
-});
-
-// Handle connection errors gracefully
-socket.on("connect_error", (err) => {
-  console.error("Connection error:", err.message);
-});
-
-// --------------------------------------------------
-// MAIN APP COMPONENT
-// --------------------------------------------------
 function App() {
   const [connectionStatus, setConnectionStatus] = useState("connecting");
+  const [messages, setMessages] = useState([]);
 
   useEffect(() => {
-    let isMounted = true;
+    registerJarvisListener((data) => {
+      console.log("Jarvis:", data.reply);
+      setMessages((prev) => [...prev, { sender: "Jarvis", text: data.reply }]);
+    });
 
-    const init = async () => {
-      try {
-        const result = await ApiService.initializeSocket();
-        if (!isMounted) return;
-        if (result.success) setConnectionStatus("connected");
-        else setConnectionStatus("disconnected");
-      } catch {
-        setConnectionStatus("disconnected");
-      }
-    };
-
-    init();
-
-    // SocketIO event listeners
-    const onConnect = () => isMounted && setConnectionStatus("connected");
-    const onDisconnect = (info) => {
-      if (!isMounted) return;
-      const { reason } = info || {};
-      setConnectionStatus(reason === "io client disconnect" ? "disconnected" : "reconnecting");
-    };
-    const onConnectError = () => isMounted && setConnectionStatus("disconnected");
-    const onReconnectAttempt = () => isMounted && setConnectionStatus("reconnecting");
-    const onReconnect = () => isMounted && setConnectionStatus("connected");
-
-    ApiService.addEventListener("connect", onConnect);
-    ApiService.addEventListener("disconnect", onDisconnect);
-    ApiService.addEventListener("connect_error", onConnectError);
-    ApiService.addEventListener("reconnect_attempt", onReconnectAttempt);
-    ApiService.addEventListener("reconnect", onReconnect);
-
-    // Cleanup when unmounting
-    return () => {
-      isMounted = false;
-      ApiService.removeEventListener("connect", onConnect);
-      ApiService.removeEventListener("disconnect", onDisconnect);
-      ApiService.removeEventListener("connect_error", onConnectError);
-      ApiService.removeEventListener("reconnect_attempt", onReconnectAttempt);
-      ApiService.removeEventListener("reconnect", onReconnect);
-      ApiService.disconnectSocket();
-      socket.disconnect();
-      console.log("Jarvis frontend socket disconnected.");
-    };
+    setConnectionStatus("connected"); // If socket connects successfully
   }, []);
+
+  // Example UI action trigger
+  const handleUserSubmit = (userInput) => {
+    sendMessageToJarvis(userInput);
+    setMessages((prev) => [...prev, { sender: "You", text: userInput }]);
+  };
 
   return (
     <ThemeProvider>
@@ -94,7 +39,7 @@ function App() {
         <Sidebar />
         <div className="main-content">
           <AIOrb />
-          <ChatPanel />
+          <ChatPanel messages={messages} onSubmit={handleUserSubmit} />
         </div>
       </div>
     </ThemeProvider>
@@ -102,4 +47,3 @@ function App() {
 }
 
 export default App;
-
