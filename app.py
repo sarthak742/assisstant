@@ -143,4 +143,60 @@ def handle_stop_voice():
         else:
             emit('jarvis_response', {'reply': 'Voice recognition stopped.', 'type': 'system'})
     except Exception as e:
-        print(f"[Error] handle_stop_voice
+        print(f"[Error] handle_stop_voice: {e}")
+        emit('jarvis_response', {'reply': f'Voice stop error: {str(e)}', 'type': 'error'})
+
+
+@socketio.on('task_request')
+def handle_task_request(data):
+    """Handle task execution requests"""
+    try:
+        task_type = data.get('task_type')
+        task_data = data.get('data', {})
+        print(f"[Task] Executing: {task_type}")
+        result = task_engine.execute_task(task_type, task_data)
+
+        emit('task_update', {
+            'task_type': task_type,
+            'result': result,
+            'status': 'completed'
+        })
+    except Exception as e:
+        print(f"[Error] handle_task_request: {e}")
+        emit('task_update', {'task_type': task_type, 'error': str(e), 'status': 'failed'})
+
+
+@app.route('/ai/chat', methods=['POST'])
+def ai_chat():
+    """Endpoint for REST chat-based communication"""
+    try:
+        data = request.get_json()
+        message = data.get('message', '')
+        if not message.strip():
+            return jsonify({'error': 'No message provided.'}), 400
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": message}]
+        )
+
+        reply = completion.choices[0].message.content.strip()
+        print(f"[OpenAI /ai/chat Response] {reply}")
+        return jsonify({'reply': reply}), 200
+    except Exception as e:
+        print(f"[OpenAI Error /ai/chat] {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# RUN SERVER
+# ============================================
+
+if __name__ == '__main__':
+    socketio.run(
+        app,
+        host='0.0.0.0',
+        port=5000,
+        debug=False,
+        allow_unsafe_werkzeug=True
+    )
