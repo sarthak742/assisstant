@@ -22,12 +22,13 @@ class ReasoningEngine:
     Handles multi-turn, context-based command routing.
     """
 
-    def __init__(self, memory_manager):
-        self.voice = VoiceModule()
-        self.task_manager = HybridTaskManager(memory_manager=self.memory, voice_module=self.voice)
-        self.memory = memory_manager
-        self.modules = {}
-        self.session_history = []  # Stores full turn/context history for current session
+def __init__(self, memory_manager):
+    self.memory = memory_manager
+    self.voice = VoiceModule()
+    self.task_manager = HybridTaskManager(memory_manager=self.memory, voice_module=self.voice)
+    self.modules = {}
+    self.session_history = []  # Stores full turn/context history for current session
+
         self.command_patterns = {
             'voice': [
                 r'speak (louder|softer|faster|slower)',
