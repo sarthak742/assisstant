@@ -8,6 +8,10 @@ Processes user commands and decides actions/context.
 
 import logging
 import re
+from modules.hybrid_task_manager import HybridTaskManager
+from modules.memory_manager import MemoryManager
+from modules.voice_module import VoiceModule
+
 from typing import Dict, List, Any, Optional, Callable
 
 logger = logging.getLogger("Jarvis.ReasoningEngine")
@@ -19,6 +23,8 @@ class ReasoningEngine:
     """
 
     def __init__(self, memory_manager):
+        self.voice = VoiceModule()
+        self.task_manager = HybridTaskManager(memory_manager=self.memory, voice_module=self.voice)
         self.memory = memory_manager
         self.modules = {}
         self.session_history = []  # Stores full turn/context history for current session
