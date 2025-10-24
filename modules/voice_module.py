@@ -143,27 +143,43 @@ class VoiceModule:
         except Exception as e:
             logger.error(f"Acknowledgment error: {e}")
 
-    def speak(self, text: str):
-        """Thread-safe TTS to prevent 'run loop already started' errors."""
-        if not VOICE_DEPENDENCIES_AVAILABLE or not self.engine:
-            logger.warning("TTS engine unavailable. Falling back to text output.")
-            print(f"Jarvis: {text}")
-            return
+   def speak(self, text: str):
+    """Thread-safe TTS with simplified COM-safe fallback."""
+    if not VOICE_DEPENDENCIES_AVAILABLE or not self.engine:
+        logger.warning("TTS engine unavailable. Falling back to console output.")
+        print(f"Jarvis: {text}")
+        return
 
-        def _speak_threadsafe():
+    def _safe_speak():
+        with self.engine_lock:
             try:
-                with self.engine_lock:
-                    pythoncom.CoInitialize()
-                    logger.info(f"Jarvis speaking: {text}")
-                    self.engine.stop()
-                    self.engine.say(text)
-                    self.engine.runAndWait()
-                    pythoncom.CoUninitialize()
+                logger.info(f"Jarvis speaking: {text}")
+                self.engine.stop()  # stop old buffer if mid-run
+                self.engine.say(text)
+                self.engine.runAndWait()
+            except RuntimeError:
+                logger.warning("TTS run loop already active; retrying asynchronously.")
+                # Quick fallback in secondary thread to recover audio
+                threading.Thread(target=self._retry_speak, args=(text,), daemon=True).start()
             except Exception as e:
                 logger.error(f"TTS Error: {e}")
-                print(f"Jarvis: {text}")  # fallback audible text
-            finally:
-                pass
+                print(f"Jarvis: {text}")
+
+    threading.Thread(target=_safe_speak, daemon=True).start()
+
+def _retry_speak(self, text: str):
+    """Backup thread to restart the TTS engine without blocking."""
+    try:
+        time.sleep(0.3)
+        with self.engine_lock:
+            self.engine.endLoop()
+            self.engine.stop()
+            self.engine.say(text)
+            self.engine.runAndWait()
+    except Exception as e:
+        logger.error(f"Retry TTS failed: {e}")
+        print(f"Jarvis (retry): {text}")
+
 
         # Always run TTS in its own thread to avoid async conflicts
         threading.Thread(target=_speak_threadsafe, daemon=True).start()
