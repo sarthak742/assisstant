@@ -6,7 +6,37 @@ import ChatPanel from "./components/ChatPanel";
 import ApiService from "./services/api";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import "./App.css";
+import { io } from "socket.io-client";
 
+// --------------------------------------------------
+// SOCKET CONNECTION SETUP (Jarvis Flask backend)
+// --------------------------------------------------
+const socket = io("http://localhost:5000");
+
+// Send user message to backend
+export function sendMessageToJarvis(userText) {
+  if (userText && userText.trim() !== "") {
+    socket.emit("user_message", { text: userText });
+  }
+}
+
+// Listen for backend responses
+socket.on("jarvis_response", (data) => {
+  console.log("Jarvis:", data.reply || data.text);
+
+  // Optional: link this to your chat UI
+  if (window.addMessageToChat)
+    window.addMessageToChat("Jarvis", data.reply || data.text);
+});
+
+// Handle connection errors gracefully
+socket.on("connect_error", (err) => {
+  console.error("Connection error:", err.message);
+});
+
+// --------------------------------------------------
+// MAIN APP COMPONENT
+// --------------------------------------------------
 function App() {
   const [connectionStatus, setConnectionStatus] = useState("connecting");
 
@@ -14,42 +44,28 @@ function App() {
     let isMounted = true;
 
     const init = async () => {
-      const result = await ApiService.initializeSocket();
-      if (!isMounted) return;
-      if (result.success) {
-        setConnectionStatus("connected");
-      } else {
+      try {
+        const result = await ApiService.initializeSocket();
+        if (!isMounted) return;
+        if (result.success) setConnectionStatus("connected");
+        else setConnectionStatus("disconnected");
+      } catch {
         setConnectionStatus("disconnected");
       }
     };
 
     init();
 
-    const onConnect = () => {
-      if (!isMounted) return;
-      setConnectionStatus("connected");
-    };
-
+    // SocketIO event listeners
+    const onConnect = () => isMounted && setConnectionStatus("connected");
     const onDisconnect = (info) => {
       if (!isMounted) return;
       const { reason } = info || {};
       setConnectionStatus(reason === "io client disconnect" ? "disconnected" : "reconnecting");
     };
-
-    const onConnectError = () => {
-      if (!isMounted) return;
-      setConnectionStatus("disconnected");
-    };
-
-    const onReconnectAttempt = () => {
-      if (!isMounted) return;
-      setConnectionStatus("reconnecting");
-    };
-
-    const onReconnect = () => {
-      if (!isMounted) return;
-      setConnectionStatus("connected");
-    };
+    const onConnectError = () => isMounted && setConnectionStatus("disconnected");
+    const onReconnectAttempt = () => isMounted && setConnectionStatus("reconnecting");
+    const onReconnect = () => isMounted && setConnectionStatus("connected");
 
     ApiService.addEventListener("connect", onConnect);
     ApiService.addEventListener("disconnect", onDisconnect);
@@ -57,6 +73,7 @@ function App() {
     ApiService.addEventListener("reconnect_attempt", onReconnectAttempt);
     ApiService.addEventListener("reconnect", onReconnect);
 
+    // Cleanup when unmounting
     return () => {
       isMounted = false;
       ApiService.removeEventListener("connect", onConnect);
@@ -65,6 +82,8 @@ function App() {
       ApiService.removeEventListener("reconnect_attempt", onReconnectAttempt);
       ApiService.removeEventListener("reconnect", onReconnect);
       ApiService.disconnectSocket();
+      socket.disconnect();
+      console.log("Jarvis frontend socket disconnected.");
     };
   }, []);
 
@@ -83,5 +102,4 @@ function App() {
 }
 
 export default App;
-
 
