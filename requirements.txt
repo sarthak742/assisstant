@@ -4,6 +4,8 @@ python-socketio[asgi]>=5.11.1
 starlette>=0.27.0
 flask
 flask_socketio
+numpy
+pydub
 
 openai
 python-dotenv
