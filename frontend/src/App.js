@@ -10,26 +10,45 @@ import {
   sendMessageToJarvis,
   startVoiceRecognition,
   stopVoiceRecognition,
-  registerJarvisListener
+  registerJarvisListener,
 } from "./services/socketService";
 
 function App() {
   const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [messages, setMessages] = useState([]);
 
+  // Listen for socket connection/disconnection events
   useEffect(() => {
+    // Status via global events
+    const setOnline = () => setConnectionStatus("connected");
+    const setOffline = () => setConnectionStatus("disconnected");
+    window.addEventListener("jarvis-connected", setOnline);
+    window.addEventListener("jarvis-disconnected", setOffline);
+
+    // Listen for Jarvis responses
     registerJarvisListener((data) => {
-      console.log("Jarvis:", data.reply);
-      setMessages((prev) => [...prev, { sender: "Jarvis", text: data.reply }]);
+      console.log("Jarvis:", data.reply || data.text);
+      setMessages((prev) => [
+        ...prev,
+        { sender: "Jarvis", text: data.reply || data.text },
+      ]);
     });
 
-    setConnectionStatus("connected"); // If socket connects successfully
+    // Cleanup listeners on unmount
+    return () => {
+      window.removeEventListener("jarvis-connected", setOnline);
+      window.removeEventListener("jarvis-disconnected", setOffline);
+    };
   }, []);
 
-  // Example UI action trigger
   const handleUserSubmit = (userInput) => {
-    sendMessageToJarvis(userInput);
-    setMessages((prev) => [...prev, { sender: "You", text: userInput }]);
+    if (userInput && userInput.trim() !== "") {
+      setMessages((prev) => [
+        ...prev,
+        { sender: "You", text: userInput },
+      ]);
+      sendMessageToJarvis(userInput);
+    }
   };
 
   return (
@@ -39,7 +58,13 @@ function App() {
         <Sidebar />
         <div className="main-content">
           <AIOrb />
-          <ChatPanel messages={messages} onSubmit={handleUserSubmit} />
+          {/* Pass messages & handler to ChatPanel */}
+          <ChatPanel
+            messages={messages}
+            onSubmit={handleUserSubmit}
+            startVoiceRecognition={startVoiceRecognition}
+            stopVoiceRecognition={stopVoiceRecognition}
+          />
         </div>
       </div>
     </ThemeProvider>
@@ -47,3 +72,4 @@ function App() {
 }
 
 export default App;
+
