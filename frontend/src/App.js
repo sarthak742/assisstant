@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import StatusBar from "./components/StatusBar/StatusBar";
 import Sidebar from "./components/Navigation/Sidebar";
 import AIOrb from "./components/AIOrb/AIOrb";
@@ -17,59 +17,71 @@ function App() {
   const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [messages, setMessages] = useState([]);
 
-  // Listen for socket connection/disconnection events
+  // --- Socket Connection & Event Handling ---
   useEffect(() => {
-    // Status via global events
-    const setOnline = () => setConnectionStatus("connected");
-    const setOffline = () => setConnectionStatus("disconnected");
-    window.addEventListener("jarvis-connected", setOnline);
-    window.addEventListener("jarvis-disconnected", setOffline);
+    const handleOnline = () => setConnectionStatus("connected");
+    const handleOffline = () => setConnectionStatus("disconnected");
 
-    // Listen for Jarvis responses
-    registerJarvisListener((data) => {
-      console.log("Jarvis:", data.reply || data.text);
+    window.addEventListener("jarvis-connected", handleOnline);
+    window.addEventListener("jarvis-disconnected", handleOffline);
+
+    // Handle Jarvis responses
+    const unregister = registerJarvisListener((data) => {
+      const jarvisReply = data.reply || data.text;
+      console.log("Jarvis:", jarvisReply);
+
       setMessages((prev) => [
         ...prev,
-        { sender: "Jarvis", text: data.reply || data.text },
+        { sender: "Jarvis", text: jarvisReply },
       ]);
     });
 
-    // Cleanup listeners on unmount
+    // Cleanup listeners
     return () => {
-      window.removeEventListener("jarvis-connected", setOnline);
-      window.removeEventListener("jarvis-disconnected", setOffline);
+      window.removeEventListener("jarvis-connected", handleOnline);
+      window.removeEventListener("jarvis-disconnected", handleOffline);
+      if (unregister) unregister();
     };
   }, []);
 
-  const handleUserSubmit = (userInput) => {
-    if (userInput && userInput.trim() !== "") {
-      setMessages((prev) => [
-        ...prev,
-        { sender: "You", text: userInput },
-      ]);
-      sendMessageToJarvis(userInput);
-    }
-  };
+  // --- Handle User Messages ---
+  const handleUserSubmit = useCallback((userInput) => {
+    const trimmed = userInput?.trim();
+    if (!trimmed) return;
+
+    setMessages((prev) => [
+      ...prev,
+      { sender: "You", text: trimmed },
+    ]);
+
+    sendMessageToJarvis(trimmed);
+  }, []);
+
+  // --- Dynamic Status Text ---
+  const connectionLabel =
+    connectionStatus === "connecting"
+      ? "Connecting to Jarvis..."
+      : connectionStatus === "connected"
+      ? "Connected"
+      : "Disconnected";
 
   return (
     <ThemeProvider>
       <div className="app-container">
-        <StatusBar connectionStatus={connectionStatus} />
+        <StatusBar connectionStatus={connectionLabel} />
         <Sidebar />
-        <div className="main-content">
-          <AIOrb />
-          {/* Pass messages & handler to ChatPanel */}
+        <main className="main-content">
+          <AIOrb status={connectionStatus} />
           <ChatPanel
             messages={messages}
             onSubmit={handleUserSubmit}
             startVoiceRecognition={startVoiceRecognition}
             stopVoiceRecognition={stopVoiceRecognition}
           />
-        </div>
+        </main>
       </div>
     </ThemeProvider>
   );
 }
 
 export default App;
-
