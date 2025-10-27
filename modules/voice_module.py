@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-Voice Module for Jarvis AI Assistant (Final v2.2 Stable)
---------------------------------------------------------
+Voice Module for Jarvis AI Assistant (No Wake Word Edition)
+-----------------------------------------------------------
 Features:
-- Continuous listening with wake-word trigger (“Hey Jarvis”)
-- Push-to-talk (mic button) for instant command capture (no wake word)
+- Push-to-talk (mic button) for instant command capture
 - Thread-safe, COM-safe TTS with retry logic
 - Adaptive ambient noise calibration for changing environments
 - Optional callback + Reasoning Engine integration
@@ -32,17 +31,13 @@ logger = logging.getLogger("Jarvis.VoiceModule")
 
 
 class VoiceModule:
-    """Handles Speech Recognition (STT), TTS, continuous wake-word listening, and push-to-talk."""
+    """Handles Speech Recognition (STT), TTS, and push-to-talk instant command."""
 
     def __init__(self, reasoning_engine: Optional[Any] = None):
         self.reasoning_engine = reasoning_engine
         self.recognizer = None
         self.engine = None
         self.engine_lock = threading.Lock()
-        self.listening = False
-        self.wake_word = "hey jarvis"
-        self.callback = None
-        self.listen_thread = None
         self.voice_settings = {'rate': 160, 'volume': 1.0, 'voice': None}
         if VOICE_DEPENDENCIES_AVAILABLE:
             self._initialize_voice_components()
@@ -118,91 +113,6 @@ class VoiceModule:
             logger.error(f"Single command listening failed: {e}")
             self.speak("Sorry, I couldn't hear you.")
             return None
-
-    # ---------------------------------------------------------
-    # Wake Word + Command (Continuous Listening)
-    # ---------------------------------------------------------
-    def start_listening(self, wake_word: str = None, callback: Callable = None):
-        """Starts background listening loop (wake word mode)."""
-        if not VOICE_DEPENDENCIES_AVAILABLE or not self.recognizer or not self.engine:
-            logger.error("Voice dependencies unavailable.")
-            return False
-
-        if wake_word:
-            self.wake_word = wake_word.lower()
-
-        self.callback = callback
-        self.listening = True
-        self.listen_thread = threading.Thread(target=self._listen_loop, daemon=True)
-        self.listen_thread.start()
-
-        self.speak("Jarvis voice interface active.")
-        logger.info(f"Listening for wake word: '{self.wake_word}'")
-        return True
-
-    def stop_listening(self):
-        """Stops active listening thread."""
-        self.listening = False
-        if self.listen_thread and self.listen_thread.is_alive():
-            self.listen_thread.join(timeout=1)
-        logger.info("Voice listening stopped.")
-
-    def _listen_loop(self):
-        """Continuously listens for wake word and handles commands."""
-        try:
-            with sr.Microphone() as source:
-                self.calibrate_noise(duration=1.0)
-                while self.listening:
-                    try:
-                        logger.debug("Listening for wake word...")
-                        audio = self.recognizer.listen(source, timeout=None, phrase_time_limit=4)
-                        text = ""
-                        try:
-                            text = self.recognizer.recognize_google(audio).lower()
-                        except sr.UnknownValueError:
-                            continue
-
-                        if self.wake_word in text:
-                            self._play_ack_sound()
-                            self.speak("Yes, I'm listening.")
-                            logger.info("Wake word detected — awaiting user command.")
-                            self._capture_command(source)
-                    except Exception as e:
-                        logger.error(f"Listening loop error: {e}")
-                        time.sleep(0.5)
-        except Exception as e:
-            logger.error(f"Failed to start microphone loop: {e}")
-
-    def _capture_command(self, source):
-        try:
-            command_audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
-            command = self.recognizer.recognize_google(command_audio)
-            logger.info(f"Command recognized: {command}")
-
-            if self.callback:
-                self.callback(command)
-            elif self.reasoning_engine:
-                response = self.reasoning_engine.process(command)
-                self.speak(response)
-        except sr.UnknownValueError:
-            self.speak("Sorry, could you repeat that?")
-        except Exception as e:
-            logger.error(f"Command processing failed: {e}")
-
-    def start_wake_word_listener(self):
-        if not VOICE_DEPENDENCIES_AVAILABLE or not self.recognizer:
-            logger.error("Wake word mode unavailable.")
-            return False
-
-        threading.Thread(target=self._listen_loop, daemon=True).start()
-        self.speak("Wake word mode activated.")
-        return True
-
-    def _play_ack_sound(self):
-        try:
-            logger.info("Wake word acknowledgment detected.")
-        except Exception as e:
-            logger.warning(f"Acknowledgment error: {e}")
 
     # ---------------------------------------------------------
     # Text-to-Speech (Thread-Safe)
