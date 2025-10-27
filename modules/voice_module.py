@@ -2,10 +2,11 @@
 # -*- coding: utf-8 -*-
 
 """
-Voice Module for Jarvis AI Assistant (Final v2.1 Stable)
+Voice Module for Jarvis AI Assistant (Final v2.2 Stable)
 --------------------------------------------------------
 Features:
 - Continuous listening with wake-word trigger (“Hey Jarvis”)
+- Push-to-talk (mic button) for instant command capture (no wake word)
 - Thread-safe, COM-safe TTS with retry logic
 - Adaptive ambient noise calibration for changing environments
 - Optional callback + Reasoning Engine integration
@@ -31,7 +32,7 @@ logger = logging.getLogger("Jarvis.VoiceModule")
 
 
 class VoiceModule:
-    """Handles Speech Recognition (STT), Text-to-Speech (TTS), and continuous wake-word listening."""
+    """Handles Speech Recognition (STT), TTS, continuous wake-word listening, and push-to-talk."""
 
     def __init__(self, reasoning_engine: Optional[Any] = None):
         self.reasoning_engine = reasoning_engine
@@ -73,7 +74,6 @@ class VoiceModule:
     # Adaptive Noise Calibration
     # ---------------------------------------------------------
     def calibrate_noise(self, duration: float = 1.5):
-        """Automatically calibrates background noise to improve recognition accuracy."""
         if not self.recognizer:
             return
         try:
@@ -85,10 +85,41 @@ class VoiceModule:
             logger.warning(f"Noise calibration failed: {e}")
 
     # ---------------------------------------------------------
-    # Listening Loop (Wake Word + Command)
+    # Push-to-Talk (Mic Button) – Instant Command Mode
+    # ---------------------------------------------------------
+    def capture_single_command(self, callback: Callable = None):
+        """Capture and process a single command (no wake word required)."""
+        if not VOICE_DEPENDENCIES_AVAILABLE or not self.recognizer:
+            logger.error("Voice dependencies unavailable.")
+            return False
+        try:
+            with sr.Microphone() as source:
+                self.calibrate_noise(duration=1.0)
+                self.speak("Listening for your command.")
+                logger.info("Listening for single voice command (mic button).")
+                audio = self.recognizer.listen(source, timeout=7, phrase_time_limit=10)
+                try:
+                    command = self.recognizer.recognize_google(audio)
+                    logger.info(f"Single command recognized: {command}")
+                    if callback:
+                        callback(command)
+                    elif self.reasoning_engine:
+                        response = self.reasoning_engine.process(command)
+                        self.speak(response)
+                    return command
+                except sr.UnknownValueError:
+                    self.speak("Sorry, could you repeat that?")
+                    return None
+        except Exception as e:
+            logger.error(f"Single command listening failed: {e}")
+            self.speak("Sorry, I couldn't hear you.")
+            return None
+
+    # ---------------------------------------------------------
+    # Wake Word + Command (Continuous Listening)
     # ---------------------------------------------------------
     def start_listening(self, wake_word: str = None, callback: Callable = None):
-        """Starts background listening loop."""
+        """Starts background listening loop (wake word mode)."""
         if not VOICE_DEPENDENCIES_AVAILABLE or not self.recognizer or not self.engine:
             logger.error("Voice dependencies unavailable.")
             return False
@@ -139,7 +170,6 @@ class VoiceModule:
             logger.error(f"Failed to start microphone loop: {e}")
 
     def _capture_command(self, source):
-        """Captures and processes user command after wake word."""
         try:
             command_audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
             command = self.recognizer.recognize_google(command_audio)
@@ -155,11 +185,7 @@ class VoiceModule:
         except Exception as e:
             logger.error(f"Command processing failed: {e}")
 
-    # ---------------------------------------------------------
-    # Wake Word Auto-Listener
-    # ---------------------------------------------------------
     def start_wake_word_listener(self):
-        """Start autonomous 'Hey Jarvis' background loop."""
         if not VOICE_DEPENDENCIES_AVAILABLE or not self.recognizer:
             logger.error("Wake word mode unavailable.")
             return False
@@ -168,9 +194,6 @@ class VoiceModule:
         self.speak("Wake word mode activated.")
         return True
 
-    # ---------------------------------------------------------
-    # Acknowledgment Sound
-    # ---------------------------------------------------------
     def _play_ack_sound(self):
         try:
             logger.info("Wake word acknowledgment detected.")
@@ -181,7 +204,6 @@ class VoiceModule:
     # Text-to-Speech (Thread-Safe)
     # ---------------------------------------------------------
     def speak(self, text: str):
-        """Thread-safe TTS that prevents runtime conflicts."""
         if not VOICE_DEPENDENCIES_AVAILABLE or not self.engine:
             print(f"Jarvis: {text}")
             return
@@ -202,7 +224,6 @@ class VoiceModule:
         threading.Thread(target=_speak_thread, daemon=True).start()
 
     def _retry_speak(self, text: str):
-        """Backup retry in case of concurrent TTS conflicts."""
         try:
             time.sleep(0.3)
             with self.engine_lock:
@@ -213,11 +234,7 @@ class VoiceModule:
             logger.error(f"TTS retry failed: {e}")
             print(f"Jarvis (retry): {text}")
 
-    # ---------------------------------------------------------
-    # Customization Settings
-    # ---------------------------------------------------------
     def change_voice(self, gender: Optional[str] = None):
-        """Switch between male or female voices."""
         if not self.engine:
             return False
         try:
@@ -253,5 +270,4 @@ class VoiceModule:
             return False
 
     def get_voice_settings(self) -> Dict[str, Any]:
-        """Return current TTS configuration."""
         return self.voice_settings.copy()
