@@ -87,33 +87,40 @@ class VoiceModule:
     # ---------------------------------------------------------
     # Push-to-Talk (Mic Button) – Instant Command Mode
     # ---------------------------------------------------------
-    def capture_single_command(self, callback: Callable = None):
-        """Capture and process a single command (no wake word required)."""
-        if not VOICE_DEPENDENCIES_AVAILABLE or not self.recognizer:
-            logger.error("Voice dependencies unavailable.")
-            return False
-        try:
-            with sr.Microphone() as source:
-                self.calibrate_noise(duration=1.0)
-                self.speak("Listening for your command.")
-                logger.info("Listening for single voice command (mic button).")
-                audio = self.recognizer.listen(source, timeout=7, phrase_time_limit=10)
-                try:
-                    command = self.recognizer.recognize_google(audio)
-                    logger.info(f"Single command recognized: {command}")
-                    if callback:
-                        callback(command)
-                    elif self.reasoning_engine:
-                        response = self.reasoning_engine.process(command)
-                        self.speak(response)
-                    return command
-                except sr.UnknownValueError:
-                    self.speak("Sorry, could you repeat that?")
-                    return None
-        except Exception as e:
-            logger.error(f"Single command listening failed: {e}")
-            self.speak("Sorry, I couldn't hear you.")
-            return None
+   def capture_single_command(self, callback: Callable = None):
+    print("DEBUG: Entered capture_single_command")
+    print("DEBUG: VOICE_DEPENDENCIES_AVAILABLE =", VOICE_DEPENDENCIES_AVAILABLE)
+    print("DEBUG: recognizer =", self.recognizer)
+    if not VOICE_DEPENDENCIES_AVAILABLE or not self.recognizer:
+        print("DEBUG: Exiting - dependencies missing or recognizer not present")
+        logger.error("Voice dependencies unavailable.")
+        return False
+    """Capture and process a single command (no wake word required)."""
+    try:
+        with sr.Microphone() as source:
+            self.calibrate_noise(duration=1.0)
+            self.speak("Listening for your command.")
+            logger.info("Listening for single voice command (mic button).")
+            audio = self.recognizer.listen(source, timeout=7, phrase_time_limit=10)
+            try:
+                command = self.recognizer.recognize_google(audio)
+                logger.info(f"Single command recognized: {command}")
+                if callback:
+                    callback(command)
+                elif self.reasoning_engine:
+                    response = self.reasoning_engine.process(command)
+                    self.speak(response)
+                return command
+            except sr.UnknownValueError:
+                self.speak("Sorry, could you repeat that?")
+                return None
+    except Exception as e:
+        logger.error(f"Single command listening failed: {e}")
+        self.speak("Sorry, I couldn't hear you.")
+        return None
+
+ 
+    # The rest of your function remains unchanged.
 
     # ---------------------------------------------------------
     # Wake Word + Command (Continuous Listening)
