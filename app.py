@@ -2,14 +2,15 @@
 # -*- coding: utf-8 -*-
 
 """
-Jarvis AI Realtime Backend Bridge (Final v2.1)
-----------------------------------------------
-Bridges Electron/React frontend ↔ Python automation backend
-via Flask‑SocketIO for real‑time execution.
+Jarvis AI Realtime Backend Bridge (v2.2 - Context Aware)
+--------------------------------------------------------
+Adds context tracking to avoid repeating identical results
+(e.g., jokes, facts, suggestions). Works globally in app.py.
 """
 
 import os
 import json
+import random
 import logging
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
@@ -24,7 +25,7 @@ from modules.memory_manager import MemoryManager
 from modules.reasoning_engine import ReasoningEngine
 
 # ============================================================
-# Initialization and Logging
+# Initialization & Logging
 # ============================================================
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +35,24 @@ if not os.getenv("OPENAI_API_KEY"):
     print("[WARNING] No OpenAI API key found. Please configure your .env file.")
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# ============================================================
+# Global Context Memory for Outputs
+# ============================================================
+last_results = {}  # {(category, user_id): last_value}
+
+def get_non_repeating_response(category, responses, user_id='default'):
+    """
+    Return a non-repeating response for the given category.
+    """
+    key = (category, user_id)
+    previous = last_results.get(key)
+    pool = [r for r in responses if r != previous]
+    if not pool:
+        pool = responses
+    new_choice = random.choice(pool)
+    last_results[key] = new_choice
+    return new_choice
 
 
 # ============================================================
@@ -86,7 +105,7 @@ def home():
 
 
 # ============================================================
-# SocketIO Event Handlers
+# SocketIO Handlers
 # ============================================================
 @socketio.on("connect")
 def on_connect():
@@ -101,7 +120,7 @@ def on_disconnect():
 
 @socketio.on("user_message")
 def on_user_message(data):
-    """Handle main chat and automation commands."""
+    """Handle main chat and automation commands with context awareness."""
     try:
         user_text = data.get("text", "").strip()
         print(f"[Frontend] Message received: {user_text}")
@@ -113,14 +132,32 @@ def on_user_message(data):
         # Process through reasoning engine
         response = reasoner.process(user_text)
 
-        # Fallback to OpenAI if local logic gives no result
+        # Apply no-repeat logic for simple content categories
+        response_category = None
+        simple_categories = {
+            "joke": ["Why did the scarecrow win an award? Because he was outstanding in his field!",
+                     "Why don’t scientists trust atoms? Because they make up everything!",
+                     "Why did the math book look sad? Because it had too many problems!"],
+            "fact": ["The Eiffel Tower can grow over 6 inches during summer.",
+                     "Bananas are berries, but strawberries are not.",
+                     "Honey never spoils — archaeologists have found edible honey in ancient tombs."]
+        }
+
+        # Auto-detect category keywords
+        for cat in simple_categories.keys():
+            if cat in user_text.lower():
+                response_category = cat
+                response = get_non_repeating_response(cat, simple_categories[cat])
+                break
+
+        # Fallback to OpenAI if no local logic yields a result
         if not response or response.strip() in [
             "", "Unknown or unsupported task type.", "I’m sorry, I don’t understand that yet."
         ]:
             response = ai_fallback.generate_response(user_text)
 
         emit("jarvis_response", {"reply": response, "type": "text"})
-        print(f"[Jarvis Reply] {response}")
+        print(f"[Jarvis Reply] {response}")
 
     except Exception as e:
         print(f"[Error] on_user_message: {e}")
@@ -156,7 +193,7 @@ def stop_voice():
 
 
 # ============================================================
-# Task / Automation Requests
+# Task Request Handler
 # ============================================================
 @socketio.on("task_request")
 def on_task_request(data):
@@ -172,7 +209,7 @@ def on_task_request(data):
 
 
 # ============================================================
-# REST Fallback Chat Endpoint
+# REST Chat Endpoint (w/ context awareness)
 # ============================================================
 @app.route("/ai/chat", methods=["POST"])
 def ai_chat():
@@ -182,7 +219,7 @@ def ai_chat():
         if not message:
             return jsonify({"error": "No message provided."}), 400
         reply = ai_fallback.generate_response(message)
-        print(f"[REST Response] {reply}")
+        print(f"[REST Response] {reply}")
         return jsonify({"reply": reply}), 200
     except Exception as e:
         print(f"[Error] /ai/chat: {e}")
@@ -193,10 +230,4 @@ def ai_chat():
 # Launch Server
 # ============================================================
 if __name__ == "__main__":
-    socketio.run(
-        app,
-        host="0.0.0.0",
-        port=5000,
-        debug=False,
-        allow_unsafe_werkzeug=True
-    )
+    socketio.run(app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True)
