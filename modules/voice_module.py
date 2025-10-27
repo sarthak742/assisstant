@@ -88,9 +88,9 @@ class VoiceModule:
     # Push-to-Talk (Mic Button) – Instant Command Mode
     # ---------------------------------------------------------
    def capture_single_command(self, callback: Callable = None):
-    print("DEBUG: Entered capture_single_command")
-    print("DEBUG: VOICE_DEPENDENCIES_AVAILABLE =", VOICE_DEPENDENCIES_AVAILABLE)
-    print("DEBUG: recognizer =", self.recognizer)
+        print("DEBUG: Entered capture_single_command")
+        print("DEBUG: VOICE_DEPENDENCIES_AVAILABLE =", VOICE_DEPENDENCIES_AVAILABLE)
+        print("DEBUG: recognizer =", self.recognizer)
     if not VOICE_DEPENDENCIES_AVAILABLE or not self.recognizer:
         print("DEBUG: Exiting - dependencies missing or recognizer not present")
         logger.error("Voice dependencies unavailable.")
